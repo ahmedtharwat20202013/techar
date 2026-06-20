@@ -52,8 +52,22 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 val pinStorage = remember { PinStorage(this@MainActivity) }
                 var isAuthenticated by remember { mutableStateOf(pinStorage.isAuthenticated()) }
-                val pinEnabled = pinStorage.isPinEnabled()
-                val hasPin = pinStorage.hasPin()
+                var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
+                var hasPin by remember { mutableStateOf(pinStorage.hasPin()) }
+
+                androidx.compose.runtime.DisposableEffect(pinStorage) {
+                    val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                        when (key) {
+                            "is_auth" -> isAuthenticated = pinStorage.isAuthenticated()
+                            "pin_enabled" -> pinEnabled = pinStorage.isPinEnabled()
+                            "user_pin" -> hasPin = pinStorage.hasPin()
+                        }
+                    }
+                    pinStorage.registerListener(listener)
+                    onDispose {
+                        pinStorage.unregisterListener(listener)
+                    }
+                }
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),

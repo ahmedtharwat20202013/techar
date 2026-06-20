@@ -5602,7 +5602,7 @@ fun ReportsBackupScreen(
                             onClick = {
                                 pinStorage.clearPin()
                                 pinStorage.setAuthenticated(false)
-                                Toast.makeText(context, "سيتم إعادة تعيين PIN عند الفتح القادم", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                             shape = RoundedCornerShape(10.dp),
