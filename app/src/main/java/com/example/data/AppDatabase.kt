@@ -140,7 +140,7 @@ class StringListConverter {
         Exam::class,
         Grade::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class, EnumConverters::class, StringListConverter::class)
@@ -307,6 +307,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    database.execSQL("ALTER TABLE `students` ADD COLUMN `isActive` INTEGER NOT NULL DEFAULT 1")
+                    database.execSQL("ALTER TABLE `students` ADD COLUMN `deletedAt` TEXT DEFAULT NULL")
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_11_12: Failed to add soft delete columns to students table")
+                }
+                try {
+                    database.execSQL("DROP INDEX IF EXISTS `index_payments_studentId`")
+                    database.execSQL("DROP INDEX IF EXISTS `index_payments_studentId_monthVal_yearVal`")
+                    database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_payments_studentId_month` ON `payments` (`studentId`, `month`)")
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_11_12: Failed to alter payment indices")
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -314,7 +332,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "teacher_manager_db"
                 )
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance

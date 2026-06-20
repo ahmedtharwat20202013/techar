@@ -20,6 +20,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
 
     // Students
     val allStudents: Flow<List<Student>> = appDao.getAllStudents()
+    fun getDeletedStudentsFlow(): Flow<List<Student>> = appDao.getDeletedStudentsFlow()
     fun getStudentsByGroup(groupId: Int): Flow<List<Student>> = appDao.getStudentsByGroup(groupId)
     suspend fun getStudentById(id: Int): Student? = appDao.getStudentById(id)
     fun getStudentByIdFlow(id: Int): Flow<Student?> = appDao.getStudentByIdFlow(id)
@@ -84,6 +85,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
     // Payments
     val allPayments: Flow<List<Payment>> = appDao.getAllPayments()
     fun getPaymentsForStudent(studentId: Int): Flow<List<Payment>> = appDao.getPaymentsForStudent(studentId)
+    suspend fun getPaymentForStudentAndMonth(studentId: Int, month: String): Payment? = appDao.getPaymentForStudentAndMonth(studentId, month)
     suspend fun insertPayment(payment: Payment): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val id = appDao.insertPayment(payment)
         forceDatabaseCheckpoint()

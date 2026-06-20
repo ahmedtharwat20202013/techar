@@ -45,6 +45,9 @@ import com.example.ui.theme.*
 import com.example.viewmodel.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -5023,6 +5026,7 @@ fun ReportsBackupScreen(
     val payments by viewModel.payments.collectAsState()
     val exams by viewModel.exams.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val deletedStudents by viewModel.deletedStudents.collectAsState()
 
     var backupTextState by remember { mutableStateOf("") }
     var restoreTextState by remember { mutableStateOf("") }
@@ -5365,6 +5369,88 @@ fun ReportsBackupScreen(
                 )
             }
 
+            // --- DELETED STUDENTS / ADVANCED OPTIONS (TRASH BIN) ---
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = DangerRed, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("الطلاب المحذوفون (سلة المهملات)", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                    }
+                    Text(
+                        text = "الطلاب الموجودون هنا تم إلغاء تفعيلهم (حذف مؤقت) لمنع فقد المعاملات المالية والسجلات المرتبطة بهم. يمكنك استعادتهم أو حذف بياناتهم نهائياً.",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        lineHeight = 16.sp
+                    )
+
+                    if (deletedStudents.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("سلة المهملات فارغة حالياً.", color = TextGray, fontSize = 12.sp)
+                        }
+                    } else {
+                        deletedStudents.forEach { student ->
+                            val groupName = groups.find { it.id == student.groupId }?.name ?: "فصل غير معروف"
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF7F9FA), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(student.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Black)
+                                    Text("المجموعة: $groupName", fontSize = 11.sp, color = TextGray)
+                                    student.deletedAt?.let {
+                                        Text("تاريخ الحذف: ${DateUtils.formatDateForDisplay(it.split(" ")[0])}", fontSize = 10.sp, color = TextGray)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    // Restore Button
+                                    Button(
+                                        onClick = {
+                                            viewModel.restoreStudent(student)
+                                            Toast.makeText(context, "تم استعادة الطالب بنجاح!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("استعادة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    // Hard Delete Button
+                                    Button(
+                                        onClick = {
+                                            viewModel.deleteStudentPermanently(student)
+                                            Toast.makeText(context, "تم حذف الطالب وسجلاته نهائياً!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("حذف نهائي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(16.dp),
@@ -5695,6 +5781,29 @@ fun StudentsScreen(
 
 // --- COMPONENT: NATIVE PDF COMPREHENSIVE GENERATOR ---
 fun exportStudentProfilePdf(
+    context: Context,
+    student: Student,
+    group: Group?,
+    payments: List<Payment>,
+    exams: List<ExamScore>,
+    attendances: List<AttendanceRecord>,
+    sessions: List<Session>,
+    viewImmediately: Boolean = false
+) {
+    PdfHelper.generateAndExportStudentProfile(
+        context,
+        student,
+        group,
+        payments,
+        exams,
+        attendances,
+        sessions,
+        viewImmediately
+    )
+}
+
+/*
+fun exportStudentProfilePdfDisabled(
     context: Context,
     student: Student,
     group: Group?,
@@ -6754,6 +6863,7 @@ fun exportStudentProfilePdf(
         Toast.makeText(context, "خطأ أثناء توليد ملف PDF: ${e.message}", Toast.LENGTH_LONG).show()
     }
 }
+*/
 
 
 

@@ -54,7 +54,9 @@ data class Student(
     val parentPhone: String,
     val joinDate: String, // String representation stored as Long in DB
     val notes: String = "",
-    val sessionsRemaining: Int = 0
+    val sessionsRemaining: Int = 0,
+    val isActive: Boolean = true,  // Soft delete flag
+    val deletedAt: String? = null  // تاريخ الحذف (اختياري للأرشفة)
 )
 
 @Entity(
@@ -156,6 +158,9 @@ data class DailyNote(
 
 @Entity(
     tableName = "payments",
+    indices = [
+        Index(value = ["studentId", "month"], unique = true)
+    ],
     foreignKeys = [
         ForeignKey(
             entity = Student::class,
@@ -163,10 +168,6 @@ data class DailyNote(
             childColumns = ["studentId"],
             onDelete = ForeignKey.CASCADE
         )
-    ],
-    indices = [
-        Index(value = ["studentId"]),
-        Index(value = ["studentId", "monthVal", "yearVal"], unique = true)
     ]
 )
 data class Payment(

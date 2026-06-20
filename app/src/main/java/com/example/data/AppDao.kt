@@ -31,10 +31,13 @@ interface AppDao {
 
 
     // --- STUDENTS ---
-    @Query("SELECT * FROM students ORDER BY name ASC")
+    @Query("SELECT * FROM students WHERE isActive = 1 ORDER BY name ASC")
     fun getAllStudents(): Flow<List<Student>>
 
-    @Query("SELECT * FROM students WHERE groupId = :groupId ORDER BY name ASC")
+    @Query("SELECT * FROM students WHERE isActive = 0 ORDER BY name ASC")
+    fun getDeletedStudentsFlow(): Flow<List<Student>>
+
+    @Query("SELECT * FROM students WHERE isActive = 1 AND groupId = :groupId ORDER BY name ASC")
     fun getStudentsByGroup(groupId: Int): Flow<List<Student>>
 
     @Query("SELECT * FROM students WHERE id = :studentId")
@@ -69,13 +72,13 @@ interface AppDao {
     @Query("SELECT * FROM sessions WHERE groupId = :groupId AND date = :date LIMIT 1")
     suspend fun getSessionByGroupAndDate(groupId: Int, date: String): Session?
 
-    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date LIKE :todayDateStr || '%')")
+    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date = :todayDateStr)")
     fun checkSessionExistsFlow(groupId: Int, todayDateStr: String): Flow<Boolean>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date LIKE :todayDate || '%')")
+    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date = :todayDate)")
     fun isSessionRecordedTodayFlow(groupId: Int, todayDate: String): Flow<Boolean>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date LIKE :todayDateStr || '%')")
+    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE groupId = :groupId AND date = :todayDateStr)")
     suspend fun checkSessionExistsDirect(groupId: Int, todayDateStr: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -87,7 +90,7 @@ interface AppDao {
     @Query("SELECT * FROM groups")
     suspend fun getAllGroupsDirect(): List<Group>
 
-    @Query("SELECT * FROM students")
+    @Query("SELECT * FROM students WHERE isActive = 1")
     suspend fun getAllStudentsDirect(): List<Student>
 
     @Query("SELECT * FROM payments WHERE month = :month")
@@ -205,6 +208,9 @@ interface AppDao {
     @Query("SELECT * FROM payments WHERE id = :paymentId")
     suspend fun getPaymentById(paymentId: Int): Payment?
 
+    @Query("SELECT * FROM payments WHERE studentId = :studentId AND month = :month LIMIT 1")
+    suspend fun getPaymentForStudentAndMonth(studentId: Int, month: String): Payment?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: Payment): Long
 
@@ -224,7 +230,7 @@ interface AppDao {
         paymentTime: String?,
         paidAt: Long?
     ) {
-        val existing = getPaymentsForStudentDirect(studentId).find { it.month == month }
+        val existing = getPaymentForStudentAndMonth(studentId, month)
         val student = getStudentById(studentId)
         val gId = student?.groupId ?: 0
         val bp = BillingPeriod.parseBillingPeriod(month)

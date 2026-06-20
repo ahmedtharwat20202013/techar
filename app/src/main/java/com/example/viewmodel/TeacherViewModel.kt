@@ -127,6 +127,7 @@ class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() 
     
     val exams = repository.allExamScores.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val attendance = repository.allAttendance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val deletedStudents = repository.getDeletedStudentsFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentDate = MutableStateFlow(DateUtils.formatStandard("yyyy-MM-dd"))
     val currentDate = _currentDate.asStateFlow()
@@ -351,14 +352,17 @@ class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() 
         }
     }
 
+    fun refreshTodaySchedule() {
+        _currentDate.value = DateUtils.formatStandard("yyyy-MM-dd") // هذا يُعيد تشغيل الـ combine
+    }
+
     fun updateGroup(group: Group) {
         viewModelScope.launch {
-            val updated = if (group.daysOfWeek.isEmpty() && group.scheduleDays.isNotBlank()) {
-                group.copy(daysOfWeek = DateUtils.parseScheduleToDaysOfWeek(group.scheduleDays))
-            } else {
-                group
-            }
+            val updated = group.copy(
+                daysOfWeek = DateUtils.parseScheduleToDaysOfWeek(group.scheduleDays)
+            )
             repository.updateGroup(updated)
+            refreshTodaySchedule()  // <-- إجبار إعادة الحساب
         }
     }
 
@@ -401,7 +405,19 @@ class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() 
 
     fun deleteStudent(student: Student) {
         viewModelScope.launch {
+            repository.updateStudent(student.copy(isActive = false, deletedAt = DateUtils.formatStandard("yyyy-MM-dd HH:mm:ss")))
+        }
+    }
+
+    fun deleteStudentPermanently(student: Student) {
+        viewModelScope.launch {
             repository.deleteStudent(student)
+        }
+    }
+
+    fun restoreStudent(student: Student) {
+        viewModelScope.launch {
+            repository.updateStudent(student.copy(isActive = true, deletedAt = null))
         }
     }
 
@@ -579,14 +595,10 @@ class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() 
 
     fun saveDailyNote(groupId: Int, date: String, sessionNumber: Int, content: String) {
         viewModelScope.launch {
-            // ALWAYS insert a new note using current exact date/time.
-            // This allows the teacher to add as many separate daily notes/lessons as they want
-            // without overriding each other or throwing a unique constraint error.
-            val currentDateTime = DateUtils.formatStandard("yyyy-MM-dd HH:mm:ss")
             repository.insertDailyNote(
                 DailyNote(
                     groupId = groupId,
-                    date = currentDateTime,
+                    date = date,  // <-- استخدم date المُمرر
                     sessionNumber = sessionNumber,
                     content = content
                 )
