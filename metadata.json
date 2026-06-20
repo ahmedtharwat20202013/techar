@@ -1,0 +1,6 @@
+{
+  "name": "مساعد المعلم",
+  "description": "An offline student, attendance, payment, and grade manager for private teachers and tutoring centers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
