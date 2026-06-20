@@ -5522,6 +5522,100 @@ fun ReportsBackupScreen(
                 }
             }
 
+            // --- PIN SECURITY CARD SECTION ---
+            val pinStorage = remember { PinStorage(context) }
+            var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
+            var showPinDialog by remember { mutableStateOf(false) }
+
+            if (showPinDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showPinDialog = false },
+                    title = { Text("تفعيل قفل PIN", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen) },
+                    text = { Text("سيطلب التطبيق إنشاء رقم PIN جديد (4 أرقام) للحماية عند الخروج أو إعادة فتح التطبيق.", color = TextGray) },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                pinStorage.setPinEnabled(true)
+                                pinStorage.setAuthenticated(false)
+                                pinStorage.clearPin() // Force setup on next launch
+                                pinEnabled = true
+                                showPinDialog = false
+                            }
+                        ) {
+                            Text("تفعيل وتعيين", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showPinDialog = false }) {
+                            Text("إلغاء", color = Color.Gray)
+                        }
+                    }
+                )
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("قفل التطبيق برقم PIN حماية", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                        }
+                        Switch(
+                            checked = pinEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = PrimaryGreen,
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color.LightGray
+                            ),
+                            onCheckedChange = { enabled ->
+                                if (enabled) {
+                                    showPinDialog = true
+                                } else {
+                                    pinStorage.setPinEnabled(false)
+                                    pinStorage.clearPin()
+                                    pinEnabled = false
+                                }
+                            }
+                        )
+                    }
+
+                    Text(
+                        text = "يقوم هذا الخيار بحماية خصوصية بيانات طلابك ونتائجهم برقم سري PIN مكون من 4 أرقام عند قفل أو فتح التطبيق.",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        lineHeight = 16.sp
+                    )
+
+                    if (pinEnabled && pinStorage.hasPin()) {
+                        Button(
+                            onClick = {
+                                pinStorage.clearPin()
+                                pinStorage.setAuthenticated(false)
+                                Toast.makeText(context, "سيتم إعادة تعيين PIN عند الفتح القادم", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("تغيير رقم PIN الحالي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(16.dp),
