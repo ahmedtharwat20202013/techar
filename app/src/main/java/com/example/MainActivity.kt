@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         val repository = TeacherRepository(database.appDao(), database)
 
         // 2. Instantiate Main Shared ViewModel from Factory
-        val factory = TeacherViewModelFactory(repository)
+        val factory = TeacherViewModelFactory(repository, application)
         val viewModel = ViewModelProvider(this, factory)[TeacherViewModel::class.java]
 
         setContent {

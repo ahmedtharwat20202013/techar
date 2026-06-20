@@ -52,6 +52,82 @@ object PdfHelper {
         }
     }
 
+    /**
+     * Draws a text value wrapped onto multiple lines if it exceedsmaxWidth.
+     * Support centering or custom alignment, returns the total vertical space consumed.
+     */
+    fun drawWrappedText(
+        canvas: Canvas,
+        text: String,
+        x: Float,
+        startY: Float,
+        maxWidth: Float,
+        paint: Paint,
+        lineHeight: Float = paint.textSize * 1.3f,
+        align: Paint.Align = Paint.Align.CENTER
+    ): Float {
+        if (text.isEmpty()) return 0f
+        
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        var currentLine = StringBuilder()
+        
+        for (word in words) {
+            val testLine = if (currentLine.isEmpty()) word else "${currentLine} $word"
+            val width = paint.measureText(testLine)
+            if (width <= maxWidth) {
+                currentLine.append(if (currentLine.isEmpty()) word else " $word")
+            } else {
+                if (currentLine.isNotEmpty()) {
+                    lines.add(currentLine.toString())
+                    currentLine = StringBuilder(word)
+                } else {
+                    lines.add(word)
+                }
+            }
+        }
+        if (currentLine.isNotEmpty()) {
+            lines.add(currentLine.toString())
+        }
+        
+        var y = startY
+        val originalTextAlign = paint.textAlign
+        paint.textAlign = align
+        
+        for (line in lines) {
+            canvas.drawText(line, x, y, paint)
+            y += lineHeight
+        }
+        
+        paint.textAlign = originalTextAlign
+        return lines.size * lineHeight
+    }
+
+    /**
+     * Calculates the number of lines a text string will generate when wrapped to maxWidth using paint.
+     */
+    fun getWrappedLinesCount(text: String, maxWidth: Float, paint: Paint): Int {
+        if (text.isEmpty()) return 0
+        val words = text.split(" ")
+        var lineCount = 0
+        var currentLine = StringBuilder()
+        
+        for (word in words) {
+            val testLine = if (currentLine.isEmpty()) word else "${currentLine} $word"
+            val width = paint.measureText(testLine)
+            if (width <= maxWidth) {
+                currentLine.append(if (currentLine.isEmpty()) word else " $word")
+            } else {
+                lineCount++
+                currentLine = StringBuilder(word)
+            }
+        }
+        if (currentLine.isNotEmpty()) {
+            lineCount++
+        }
+        return lineCount
+    }
+
     fun generateAndExportStudentProfile(
         context: Context,
         student: Student,
@@ -774,7 +850,7 @@ object PdfHelper {
                         canvas3.drawText("لا توجد سجلات اشتراكات لهذا الطالب.", 297.5f, yPos3 + 40f, textPaint)
                     } else {
                         sortedPayments.forEachIndexed { index, pair ->
-                            if (yPos3 > 740f) {
+                            if (yPos3 + 25f > 740f) {
                                 // Draw Footer before finishing page
                                 paint.color = colorGrayBorder
                                 canvas3.drawRect(30f, 790f, 565f, 791f, paint)
@@ -1004,7 +1080,10 @@ object PdfHelper {
                         canvas4.drawText("لم تجر اختبارات أكاديمية للطالب حتى تاريخ اليوم.", 297.5f, yPos4 + 40f, textPaint)
                     } else {
                         sortedExams.forEachIndexed { index, e ->
-                            if (yPos4 > 740f) {
+                            val numLines = getWrappedLinesCount(e.examName, 130f, textPaint)
+                            val rowHeight = if (numLines > 1) 12f + (numLines * 12f) else 25f
+
+                            if (yPos4 + rowHeight > 740f) {
                                 // Draw Footer before finishing page
                                 paint.color = colorGrayBorder
                                 canvas4.drawRect(30f, 790f, 565f, 791f, paint)
@@ -1061,16 +1140,26 @@ object PdfHelper {
                             yPos4 += 2f
                             if (index % 2 == 1) {
                                 paint.color = colorLightGray
-                                canvas4.drawRect(30f, yPos4, 565f, yPos4 + 25f, paint)
+                                canvas4.drawRect(30f, yPos4, 565f, yPos4 + rowHeight, paint)
                             }
                             
-                            textPaint.textAlign = android.graphics.Paint.Align.CENTER
+                            val cellCenterY = yPos4 + (rowHeight / 2f) + (textPaint.textSize / 2f) - 1f
+                            
                             textPaint.color = colorDarkGray
                             textPaint.isFakeBoldText = false
                             textPaint.textSize = 10f
                             
-                            // Write cells
-                            canvas4.drawText(e.examName, 487.5f, yPos4 + 17f, textPaint)
+                            // Write wrapped exam name
+                            drawWrappedText(
+                                canvas = canvas4,
+                                text = e.examName,
+                                x = 487.5f,
+                                startY = yPos4 + (rowHeight / 2f) - ((numLines - 1) * 6f) + (textPaint.textSize / 2f) - 1f,
+                                maxWidth = 130f,
+                                paint = textPaint,
+                                lineHeight = 12f,
+                                align = android.graphics.Paint.Align.CENTER
+                            )
                             
                             val examPct = if (e.maxScore > 0) (e.score * 100 / e.maxScore).toInt() else 0
                             val accentC = when {
@@ -1079,17 +1168,18 @@ object PdfHelper {
                                 else -> colorRed
                             }
                             
+                            textPaint.textAlign = android.graphics.Paint.Align.CENTER
                             textPaint.color = accentC
                             textPaint.isFakeBoldText = true
-                            canvas4.drawText("${e.score.toInt()}", 365f, yPos4 + 17f, textPaint)
+                            canvas4.drawText("${e.score.toInt()}", 365f, cellCenterY, textPaint)
                             
                             textPaint.color = colorDarkGray
                             textPaint.isFakeBoldText = false
-                            canvas4.drawText("${e.maxScore.toInt()}", 280f, yPos4 + 17f, textPaint)
+                            canvas4.drawText("${e.maxScore.toInt()}", 280f, cellCenterY, textPaint)
                             
                             textPaint.color = accentC
                             textPaint.isFakeBoldText = true
-                            canvas4.drawText("$examPct%", 195f, yPos4 + 17f, textPaint)
+                            canvas4.drawText("$examPct%", 195f, cellCenterY, textPaint)
                             
                             val examRating = when {
                                 examPct >= 90 -> "ممتاز"
@@ -1097,9 +1187,9 @@ object PdfHelper {
                                 examPct >= 65 -> "جيد"
                                 else -> "مقبول"
                             }
-                            canvas4.drawText(examRating, 90f, yPos4 + 17f, textPaint)
+                            canvas4.drawText(examRating, 90f, cellCenterY, textPaint)
                             
-                            yPos4 += 25f
+                            yPos4 += rowHeight
                         }
                     }
                     

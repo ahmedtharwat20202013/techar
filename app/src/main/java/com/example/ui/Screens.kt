@@ -56,6 +56,12 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+fun isValidEgyptianPhoneNumber(num: String): Boolean {
+    val clean = num.trim().replace(" ", "").replace("-", "")
+    val regex = "^(\\+?2?0?)?1[0-2,5][0-9]{8}$".toRegex()
+    return clean.matches(regex)
+}
+
 // --- SCREEN ORCHESTRATOR ROUTING ROUTES ---
 sealed class Screen(val route: String) {
     object Dashboard : Screen("dashboard")
@@ -2371,6 +2377,9 @@ fun AddStudentDialog(
     var notes by remember { mutableStateOf("") }
     var sessionsRemaining by remember { mutableStateOf("8") }
 
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+
     val context = LocalContext.current
     val calendar = remember { java.util.Calendar.getInstance() }
 
@@ -2413,16 +2422,35 @@ fun AddStudentDialog(
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { 
+                        name = it 
+                        nameError = if (it.isBlank()) "الاسم بالكامل مطلوب" else null
+                    },
                     label = { Text("الاسم الكامل للطالب") },
+                    isError = nameError != null,
+                    supportingText = { nameError?.let { Text(it) } },
                     modifier = Modifier.fillMaxWidth().testTag("student_name_input"),
                     shape = RoundedCornerShape(10.dp)
                 )
 
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { input ->
+                        val clean = input.trim()
+                        if (clean.isEmpty() || clean.all { it.isDigit() || it == '+' || it == ' ' || it == '-' }) {
+                            phone = input
+                        }
+                        phoneError = if (input.isBlank()) {
+                            "رقم هاتف ولي الأمر مطلوب"
+                        } else if (!isValidEgyptianPhoneNumber(input)) {
+                            "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
+                        } else {
+                            null
+                        }
+                    },
                     label = { Text("رقم هاتف ولي الأمر") },
+                    isError = phoneError != null,
+                    supportingText = { phoneError?.let { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -2483,7 +2511,15 @@ fun AddStudentDialog(
                     Button(
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            if (name.isNotBlank() && phone.isNotBlank()) {
+                            nameError = if (name.isBlank()) "الاسم بالكامل مطلوب" else null
+                            phoneError = if (phone.isBlank()) {
+                                "رقم هاتف ولي الأمر مطلوب"
+                            } else if (!isValidEgyptianPhoneNumber(phone)) {
+                                "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
+                            } else {
+                                null
+                            }
+                            if (nameError == null && phoneError == null && name.isNotBlank() && phone.isNotBlank()) {
                                 onSave(name, phone, joinDate, notes, sessionsRemaining.toIntOrNull() ?: 8)
                             }
                         },
@@ -2950,13 +2986,14 @@ fun EditStudentDialog(
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { input ->
-                        if (input.all { it.isDigit() }) {
+                        val clean = input.trim()
+                        if (clean.isEmpty() || clean.all { it.isDigit() || it == '+' || it == ' ' || it == '-' }) {
                             phone = input
                         }
                         phoneError = if (input.isBlank()) {
                             "رقم هاتف ولي الأمر مطلوب"
-                        } else if (!input.all { it.isDigit() }) {
-                            "يجب إدخال أرقام فقط"
+                        } else if (!isValidEgyptianPhoneNumber(input)) {
+                            "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
                         } else {
                             null
                         }
@@ -3024,11 +3061,13 @@ fun EditStudentDialog(
                     Button(
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            if (name.isBlank()) {
-                                nameError = "اسم الطالب مطلوب ولا يمكن تركه فارغاً"
-                            }
-                            if (phone.isBlank()) {
-                                phoneError = "رقم هاتف ولي الأمر مطلوب"
+                            nameError = if (name.isBlank()) "اسم الطالب مطلوب ولا يمكن تركه فارغاً" else null
+                            phoneError = if (phone.isBlank()) {
+                                "رقم هاتف ولي الأمر مطلوب"
+                            } else if (!isValidEgyptianPhoneNumber(phone)) {
+                                "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
+                            } else {
+                                null
                             }
                             if (nameError == null && phoneError == null && name.isNotBlank() && phone.isNotBlank()) {
                                 onSave(
@@ -3098,6 +3137,9 @@ fun DashboardAddStudentDialog(
     var sessionsRemaining by remember { mutableStateOf("8") }
     var expanded by remember { mutableStateOf(false) }
 
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(selectedGroupIdx) {
         joinDate = groupsList.getOrNull(selectedGroupIdx)?.startDate ?: SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())
     }
@@ -3165,8 +3207,13 @@ fun DashboardAddStudentDialog(
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { 
+                        name = it 
+                        nameError = if (it.isBlank()) "الاسم بالكامل مطلوب" else null
+                    },
                     label = { Text("الاسم الكامل للطالب") },
+                    isError = nameError != null,
+                    supportingText = { nameError?.let { Text(it) } },
                     modifier = Modifier.fillMaxWidth().testTag("student_name_input"),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -3177,8 +3224,22 @@ fun DashboardAddStudentDialog(
 
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { input ->
+                        val clean = input.trim()
+                        if (clean.isEmpty() || clean.all { it.isDigit() || it == '+' || it == ' ' || it == '-' }) {
+                            phone = input
+                        }
+                        phoneError = if (input.isBlank()) {
+                            "رقم هاتف ولي الأمر مطلوب"
+                        } else if (!isValidEgyptianPhoneNumber(input)) {
+                            "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
+                        } else {
+                            null
+                        }
+                    },
                     label = { Text("رقم هاتف ولي الأمر") },
+                    isError = phoneError != null,
+                    supportingText = { phoneError?.let { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -3245,7 +3306,15 @@ fun DashboardAddStudentDialog(
                     Button(
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            if (name.isNotBlank() && phone.isNotBlank()) {
+                            nameError = if (name.isBlank()) "الاسم بالكامل مطلوب" else null
+                            phoneError = if (phone.isBlank()) {
+                                "رقم هاتف ولي الأمر مطلوب"
+                            } else if (!isValidEgyptianPhoneNumber(phone)) {
+                                "صيغة رقم الهاتف غير صالحة. يجب أن يكون رقم مصري صحيح (مثال: 01012345678)"
+                            } else {
+                                null
+                            }
+                            if (nameError == null && phoneError == null && name.isNotBlank() && phone.isNotBlank()) {
                                 onSave(
                                     groupsList[selectedGroupIdx].id,
                                     name,
@@ -3734,11 +3803,11 @@ fun StudentProfileScreen(
     val isPerSessionPrivate = group?.groupType == GroupType.private && group?.billingMode == BillingMode.per_session
 
     // Dialog sheets
-    var showPaymentDialog by remember { mutableStateOf(false) }
-    var showExamDialog by remember { mutableStateOf(false) }
-    var showNotesDialog by remember { mutableStateOf(false) }
-    var showDeletePrompt by remember { mutableStateOf(false) }
-    var showEditStudentDialog by remember { mutableStateOf(false) }
+    var showPaymentDialog by rememberSaveable { mutableStateOf(false) }
+    var showExamDialog by rememberSaveable { mutableStateOf(false) }
+    var showNotesDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeletePrompt by rememberSaveable { mutableStateOf(false) }
+    var showEditStudentDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {

@@ -17,7 +17,7 @@ data class PaymentStats(
     val unpaidCount: Int = 0
 )
 
-class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() {
+class TeacherViewModel(private val repository: TeacherRepository, private val application: android.app.Application) : ViewModel() {
 
     // Active/Selected items for Navigation/Editing (optional state)
     private val _selectedGroupId = MutableStateFlow<Int?>(null)
@@ -158,7 +158,15 @@ class TeacherViewModel(private val repository: TeacherRepository) : ViewModel() 
         // Prepopulate with rich dummy data if DB is empty, run automations and cleanup orphan sessions
         viewModelScope.launch {
             repository.prepopulateIfEmpty()
-            repository.triggerMonthlyBillingAutomation()
+            
+            // Check and run monthly billing automation limit to once per month
+            val currentMonthStr = DateUtils.formatStandard("yyyy-MM")
+            val prefs = application.getSharedPreferences("BillingPrefs", android.content.Context.MODE_PRIVATE)
+            val lastRun = prefs.getString("lastBillingRunMonth", "")
+            if (lastRun != currentMonthStr) {
+                repository.triggerMonthlyBillingAutomation()
+                prefs.edit().putString("lastBillingRunMonth", currentMonthStr).apply()
+            }
         }
         
         // Start a daemon coroutine to check and sync day changes automatically
@@ -803,11 +811,11 @@ data class SessionTodayUi(
     val studentCount: Int
 )
 
-class TeacherViewModelFactory(private val repository: TeacherRepository) : ViewModelProvider.Factory {
+class TeacherViewModelFactory(private val repository: TeacherRepository, private val application: android.app.Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TeacherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return TeacherViewModel(repository) as T
+            return TeacherViewModel(repository, application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
