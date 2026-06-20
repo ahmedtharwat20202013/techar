@@ -82,7 +82,8 @@ object PdfHelper {
                     val pdfDocument = android.graphics.pdf.PdfDocument()
                     
                     // --- DATA CALCULATIONS ---
-                    val normJoinDate = student.joinDate.isNotBlank().let { if (it) student.joinDate.replace("-", "/") else "2026-06-12" }
+                    val defaultDate = DateUtils.formatStandard("yyyy-MM-dd")
+                    val normJoinDate = student.joinDate.isNotBlank().let { if (it) student.joinDate.replace("-", "/") else defaultDate }
                     
                     // Filter sessions starting on or after Student joinDate
                     val activeSessions = sessions.filter { it.date.replace("-", "/") >= normJoinDate }
@@ -191,7 +192,8 @@ object PdfHelper {
                                 } else if (parts[2].length == 4) {
                                     "${parts[2]}-$p1"
                                 } else {
-                                    "2026-$p1"
+                                    val fallbackYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                                    "$fallbackYear-$p1"
                                 }
                             } else {
                                 "unknown"

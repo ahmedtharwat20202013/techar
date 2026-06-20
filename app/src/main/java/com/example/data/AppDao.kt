@@ -550,10 +550,10 @@ interface AppDao {
 
     @Query("""
         DELETE FROM sessions 
-        WHERE (date >= '2026-06-15' OR date >= '2026/06/15' OR date LIKE '2026-06-%' OR date LIKE '2026/06/%') 
+        WHERE (date >= :currentDateStr OR date LIKE :monthPattern) 
           AND id NOT IN (SELECT DISTINCT sessionId FROM attendance_records)
     """)
-    suspend fun deleteOrphanRecentSessions()
+    suspend fun deleteOrphanRecentSessions(currentDateStr: String, monthPattern: String)
 
     @Transaction
     suspend fun clearAllDatabaseData() {

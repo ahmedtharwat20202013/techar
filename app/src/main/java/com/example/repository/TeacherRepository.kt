@@ -245,6 +245,8 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
     }
 
     suspend fun deleteOrphanRecentSessions() {
-        appDao.deleteOrphanRecentSessions()
+        val today = DateUtils.formatStandard("yyyy-MM-dd")
+        val monthPattern = DateUtils.formatStandard("yyyy-MM-") + "%"
+        appDao.deleteOrphanRecentSessions(today, monthPattern)
     }
 }

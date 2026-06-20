@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -365,9 +366,9 @@ fun DashboardScreen(
     val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())
     
     // Dialog state for selections
-    var showAddGroupDialog by remember { mutableStateOf(false) }
-    var showDashboardAddStudentDialog by remember { mutableStateOf(false) }
-    var showAttendanceGroupPickerDialog by remember { mutableStateOf(false) }
+    var showAddGroupDialog by rememberSaveable { mutableStateOf(false) }
+    var showDashboardAddStudentDialog by rememberSaveable { mutableStateOf(false) }
+    var showAttendanceGroupPickerDialog by rememberSaveable { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -1187,8 +1188,8 @@ fun ClassesScreen(
     val groups by viewModel.groups.collectAsState()
     val students by viewModel.students.collectAsState()
 
-    var searchQuery by remember { mutableStateOf("") }
-    var showAddGroupDialog by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showAddGroupDialog by rememberSaveable { mutableStateOf(false) }
     var selectedGroupToEdit by remember { mutableStateOf<Group?>(null) }
     var selectedGroupToDelete by remember { mutableStateOf<Group?>(null) }
 
@@ -1659,11 +1660,11 @@ fun GroupDetailScreen(
 
     val isPerSessionPrivate = group?.groupType == GroupType.private && group?.billingMode == BillingMode.per_session
 
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var showAddStudentDialog by remember { mutableStateOf(false) }
-    var showAddSessionDialog by remember { mutableStateOf(false) }
-    var showDeleteGroupPrompt by remember { mutableStateOf(false) }
-    var showEditGroupDialog by remember { mutableStateOf(false) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var showAddStudentDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddSessionDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteGroupPrompt by rememberSaveable { mutableStateOf(false) }
+    var showEditGroupDialog by rememberSaveable { mutableStateOf(false) }
     var selectedStudentToEdit by remember { mutableStateOf<Student?>(null) }
     var selectedStudentToDelete by remember { mutableStateOf<Student?>(null) }
 
@@ -2864,7 +2865,8 @@ fun EditGroupDialog(
                                         scheduleDays = scheduleString,
                                         groupType = groupType,
                                         billingMode = calculatedBillingMode,
-                                        sessionsPerMonth = calculatedSessionsPerMonth
+                                        sessionsPerMonth = calculatedSessionsPerMonth,
+                                        daysOfWeek = DateUtils.parseScheduleToDaysOfWeek(scheduleString)
                                     )
                                 )
                             }

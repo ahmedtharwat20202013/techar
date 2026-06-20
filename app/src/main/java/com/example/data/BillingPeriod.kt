@@ -75,9 +75,10 @@ data class BillingPeriod(
                 "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
             )
             
+            val cal = java.util.Calendar.getInstance()
             val lower = trimmed.lowercase(Locale.ROOT)
-            var foundMonth = 6 // default June
-            var foundYear = 2026 // default 2026
+            var foundMonth = cal.get(java.util.Calendar.MONTH) + 1
+            var foundYear = cal.get(java.util.Calendar.YEAR)
             
             // Extract trailing or leading year (4 digits)
             val yearFinder = "\\b(20\\d{2})\\b".toRegex()

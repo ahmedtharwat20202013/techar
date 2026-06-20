@@ -37,7 +37,7 @@ class DateConverter {
             }
             val numeric = dateStr.toLongOrNull()
             if (numeric != null) return numeric
-            throw IllegalArgumentException("Invalid date format: '$dateStr'. Expected formats: ${formats.joinToString(", ")}")
+            return null
         }
 
         @TypeConverter
