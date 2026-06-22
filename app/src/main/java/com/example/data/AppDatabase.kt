@@ -377,11 +377,62 @@ abstract class AppDatabase : RoomDatabase() {
                         VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
                     """.trimIndent())
                     
-                    // 6. نقل groupId من students إلى enrollments
-                    database.execSQL("""
-                        INSERT INTO `enrollments` (`studentId`, `groupId`, `academicYearId`, `status`, `enrollmentDate`)
-                        SELECT `id`, `groupId`, 1, 'active', `joinDate` FROM `students`
-                    """.trimIndent())
+                    // 6. نقل groupId من students إلى enrollments بالتحقق من وجود العمود
+                    val hasGroupId = try {
+                        val cursor = database.query("PRAGMA table_info(students)")
+                        var found = false
+                        while (cursor.moveToNext()) {
+                            val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                            if (name == "groupId") {
+                                found = true
+                                break
+                            }
+                        }
+                        cursor.close()
+                        found
+                    } catch (e: Exception) {
+                        true
+                    }
+
+                    if (hasGroupId) {
+                        try {
+                            database.execSQL("""
+                                INSERT INTO `enrollments` (`studentId`, `groupId`, `academicYearId`, `status`, `enrollmentDate`)
+                                SELECT `id`, `groupId`, 1, 'active', `joinDate` FROM `students`
+                            """.trimIndent())
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to copy student groupId to enrollments")
+                        }
+
+                        // Recreate students table to drop the groupId column safely
+                        try {
+                            database.execSQL("""
+                                CREATE TABLE IF NOT EXISTS `students_new` (
+                                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                    `name` TEXT NOT NULL,
+                                    `parentPhone` TEXT NOT NULL,
+                                    `joinDate` TEXT NOT NULL,
+                                    `notes` TEXT NOT NULL,
+                                    `sessionsRemaining` INTEGER NOT NULL,
+                                    `isActive` INTEGER NOT NULL,
+                                    `deletedAt` TEXT
+                                )
+                            """.trimIndent())
+
+                            database.execSQL("""
+                                INSERT INTO `students_new` (`id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt`)
+                                SELECT `id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt` FROM `students`
+                            """.trimIndent())
+
+                            database.execSQL("DROP TABLE IF EXISTS `students`")
+                            database.execSQL("ALTER TABLE `students_new` RENAME TO `students`")
+                            Timber.d("Successfully migrates: dropped groupId column from students table")
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to drop groupId column from students table during migration")
+                        }
+                    } else {
+                        Timber.d("students table does not have groupId column, skipping transfer/drop block")
+                    }
                     
                     // 7. تحديث academicYearId للبيانات الحالية
                     database.execSQL("UPDATE `attendance_records` SET `academicYearId` = 1")
