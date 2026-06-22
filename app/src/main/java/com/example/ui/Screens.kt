@@ -5828,6 +5828,31 @@ fun StartNewAcademicYearDialog(
     var newYearStartDate by remember { mutableStateOf(suggestedStartDate) }
     var newYearEndDate by remember { mutableStateOf(suggestedEndDate) }
 
+    fun showDatePicker(currentDateStr: String, onDateSelected: (String) -> Unit) {
+        val calendar = Calendar.getInstance()
+        try {
+            val parts = currentDateStr.split("-")
+            if (parts.size == 3) {
+                val year = parts[0].toInt()
+                val month = parts[1].toInt() - 1 // 0-based
+                val day = parts[2].toInt()
+                calendar.set(year, month, day)
+            }
+        } catch (e: Exception) {
+            // fallback
+        }
+        android.app.DatePickerDialog(
+            context,
+            { _, year, monthOfYear, dayOfMonth ->
+                val formattedDate = String.format(Locale.US, "%04d-%02d-%02d", year, monthOfYear + 1, dayOfMonth)
+                onDateSelected(formattedDate)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
     // --- STEP 2: Group & Student Mappings ---
     val activeGroups = remember(groups, enrollments, currentYear) {
         val yId = currentYear?.id ?: 1
@@ -5983,23 +6008,77 @@ fun StartNewAcademicYearDialog(
                                     singleLine = true
                                 )
 
-                                OutlinedTextField(
-                                    value = newYearStartDate,
-                                    onValueChange = { newYearStartDate = it },
-                                    label = { Text("تاريخ بداية العام الجديد (YYYY-MM-DD)") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = newYearStartDate,
+                                        onValueChange = { },
+                                        label = { Text("تاريخ بداية العام الجديد (YYYY-MM-DD)") },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        readOnly = true,
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarToday,
+                                                contentDescription = "اختر التاريخ",
+                                                tint = PrimaryGreen
+                                            )
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = TextDark,
+                                            unfocusedTextColor = TextDark,
+                                            focusedBorderColor = PrimaryGreen,
+                                            unfocusedBorderColor = PrimaryGreen.copy(alpha = 0.5f),
+                                            focusedLabelColor = PrimaryGreen,
+                                            unfocusedLabelColor = TextGray
+                                        ),
+                                        singleLine = true
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .clickable {
+                                                showDatePicker(newYearStartDate) { selectedDate ->
+                                                    newYearStartDate = selectedDate
+                                                }
+                                            }
+                                    )
+                                }
 
-                                OutlinedTextField(
-                                    value = newYearEndDate,
-                                    onValueChange = { newYearEndDate = it },
-                                    label = { Text("تاريخ نهاية العام الجديد (YYYY-MM-DD)") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = newYearEndDate,
+                                        onValueChange = { },
+                                        label = { Text("تاريخ نهاية العام الجديد (YYYY-MM-DD)") },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        readOnly = true,
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarToday,
+                                                contentDescription = "اختر التاريخ",
+                                                tint = PrimaryGreen
+                                            )
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = TextDark,
+                                            unfocusedTextColor = TextDark,
+                                            focusedBorderColor = PrimaryGreen,
+                                            unfocusedBorderColor = PrimaryGreen.copy(alpha = 0.5f),
+                                            focusedLabelColor = PrimaryGreen,
+                                            unfocusedLabelColor = TextGray
+                                        ),
+                                        singleLine = true
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .clickable {
+                                                showDatePicker(newYearEndDate) { selectedDate ->
+                                                    newYearEndDate = selectedDate
+                                                 }
+                                             }
+                                    )
+                                }
 
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Card(
