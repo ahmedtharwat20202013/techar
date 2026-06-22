@@ -3,11 +3,25 @@ package com.example.repository
 import com.example.data.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Date
 
 class TeacherRepository(private val appDao: AppDao, private val database: AppDatabase) {
+
+    // Helper to map and populate student.groupId of the list
+    private fun Flow<List<Student>>.populateGroupId(): Flow<List<Student>> = this.map { list ->
+        val currentYear = appDao.getCurrentAcademicYear()
+        if (currentYear != null) {
+            val enrollments = appDao.getEnrollmentsForYearDirect(currentYear.id)
+            val enrollmentMap = enrollments.associate { it.studentId to it.groupId }
+            list.forEach { student ->
+                student.groupId = enrollmentMap[student.id] ?: 0
+            }
+        }
+        list
+    }
 
     // Groups
     val allGroups: Flow<List<Group>> = appDao.getAllGroups()
@@ -19,11 +33,63 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
     suspend fun deleteGroup(group: Group) = appDao.deleteGroup(group)
 
     // Students
-    val allStudents: Flow<List<Student>> = appDao.getAllStudents()
-    fun getDeletedStudentsFlow(): Flow<List<Student>> = appDao.getDeletedStudentsFlow()
-    fun getStudentsByGroup(groupId: Int): Flow<List<Student>> = appDao.getStudentsByGroup(groupId)
-    suspend fun getStudentById(id: Int): Student? = appDao.getStudentById(id)
-    fun getStudentByIdFlow(id: Int): Flow<Student?> = appDao.getStudentByIdFlow(id)
+    val allStudents: Flow<List<Student>> = appDao.getAllStudents().populateGroupId()
+    fun getDeletedStudentsFlow(): Flow<List<Student>> = appDao.getDeletedStudentsFlow().populateGroupId()
+    fun getStudentsByGroup(groupId: Int): Flow<List<Student>> = appDao.getStudentsByGroup(groupId).map { list ->
+        list.forEach { student ->
+            student.groupId = groupId
+        }
+        list
+    }
+    
+    suspend fun getStudentById(id: Int): Student? {
+        val student = appDao.getStudentById(id)
+        if (student != null) {
+            val currentYear = appDao.getCurrentAcademicYear()
+            if (currentYear != null) {
+                val enrollment = appDao.getEnrollment(student.id, currentYear.id)
+                if (enrollment != null) {
+                    student.groupId = enrollment.groupId
+                }
+            }
+        }
+        return student
+    }
+    
+    fun getStudentByIdFlow(id: Int): Flow<Student?> = appDao.getStudentByIdFlow(id).map { student ->
+        if (student != null) {
+            val currentYear = appDao.getCurrentAcademicYear()
+            if (currentYear != null) {
+                val enrollment = appDao.getEnrollment(student.id, currentYear.id)
+                if (enrollment != null) {
+                    student.groupId = enrollment.groupId
+                }
+            }
+        }
+        student
+    }
+
+    // Academic Years
+    val allAcademicYears: Flow<List<AcademicYear>> = appDao.getAllAcademicYears()
+    suspend fun getCurrentAcademicYear(): AcademicYear? = appDao.getCurrentAcademicYear()
+    fun getCurrentAcademicYearFlow(): Flow<AcademicYear?> = appDao.getCurrentAcademicYearFlow()
+    suspend fun getAcademicYearById(yearId: Int): AcademicYear? = appDao.getAcademicYearById(yearId)
+    suspend fun insertAcademicYear(year: AcademicYear): Long = appDao.insertAcademicYear(year)
+    suspend fun updateAcademicYear(year: AcademicYear) = appDao.updateAcademicYear(year)
+
+    // Enrollments
+    fun getEnrollmentsForYear(yearId: Int): Flow<List<Enrollment>> = appDao.getEnrollmentsForYear(yearId)
+    suspend fun getEnrollmentsForYearDirect(yearId: Int): List<Enrollment> = appDao.getEnrollmentsForYearDirect(yearId)
+    fun getEnrollmentsForStudent(studentId: Int): Flow<List<Enrollment>> = appDao.getEnrollmentsForStudent(studentId)
+    suspend fun insertEnrollment(enrollment: Enrollment): Long = appDao.insertEnrollment(enrollment)
+    suspend fun getStudentGroupForYear(studentId: Int, yearId: Int): Group? = appDao.getStudentGroupForYear(studentId, yearId)
+
+    // Start New Academic Year
+    suspend fun startNewAcademicYear(newYearLabel: String, groupMappings: Map<Int, Int?>): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val result = appDao.startNewAcademicYearTransaction(newYearLabel, groupMappings)
+        forceDatabaseCheckpoint()
+        result
+    }
 
     private fun forceDatabaseCheckpoint() {
         try {
@@ -35,11 +101,40 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
 
     suspend fun insertStudent(student: Student): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val id = appDao.insertStudent(student)
+        val currentYear = appDao.getCurrentAcademicYear()
+        if (currentYear != null && student.groupId != 0) {
+            appDao.insertEnrollment(
+                Enrollment(
+                    studentId = id.toInt(),
+                    groupId = student.groupId,
+                    academicYearId = currentYear.id,
+                    status = "active",
+                    enrollmentDate = student.joinDate
+                )
+            )
+        }
         forceDatabaseCheckpoint()
         id
     }
     suspend fun updateStudent(student: Student) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         appDao.updateStudent(student)
+        val currentYear = appDao.getCurrentAcademicYear()
+        if (currentYear != null && student.groupId != 0) {
+            val existingEnrollment = appDao.getEnrollment(student.id, currentYear.id)
+            if (existingEnrollment != null) {
+                appDao.insertEnrollment(existingEnrollment.copy(groupId = student.groupId))
+            } else {
+                appDao.insertEnrollment(
+                    Enrollment(
+                        studentId = student.id,
+                        groupId = student.groupId,
+                        academicYearId = currentYear.id,
+                        status = "active",
+                        enrollmentDate = student.joinDate
+                    )
+                )
+            }
+        }
         forceDatabaseCheckpoint()
     }
     suspend fun deleteStudent(student: Student) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

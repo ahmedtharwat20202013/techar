@@ -82,6 +82,16 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val students = repository.allStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val sessions = repository.allSessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
+    val allAcademicYears = repository.allAcademicYears.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val currentAcademicYear = repository.getCurrentAcademicYearFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun startNewAcademicYear(newYearLabel: String, groupMappings: Map<Int, Int?>, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.startNewAcademicYear(newYearLabel, groupMappings)
+            onComplete(result)
+        }
+    }
+    
     val payments = repository.allPayments.map { list ->
         list.map { it.copy(month = fromYearMonth(it.month)) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -211,6 +221,14 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
 
     fun getAttendanceForStudent(studentId: Int): Flow<List<AttendanceRecord>> {
         return repository.getAttendanceForStudent(studentId)
+    }
+
+    fun getEnrollmentsForStudent(studentId: Int): Flow<List<Enrollment>> {
+        return repository.getEnrollmentsForStudent(studentId)
+    }
+
+    suspend fun getEnrollmentsForYearDirect(yearId: Int): List<Enrollment> {
+        return repository.getEnrollmentsForYearDirect(yearId)
     }
 
     suspend fun getGroupById(id: Int): Group? {
@@ -391,15 +409,17 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         viewModelScope.launch {
             val currentMonthArabic = getCurrentMonthYearArabic()
             val currentMonthCode = toYearMonth(currentMonthArabic)
+            val student = Student(
+                name = name,
+                parentPhone = parentPhone,
+                joinDate = joinDate,
+                notes = notes,
+                sessionsRemaining = sessionsRemaining
+            ).apply {
+                this.groupId = groupId
+            }
             repository.addStudentWithProRataBilling(
-                Student(
-                    groupId = groupId,
-                    name = name,
-                    parentPhone = parentPhone,
-                    joinDate = joinDate,
-                    notes = notes,
-                    sessionsRemaining = sessionsRemaining
-                ),
+                student,
                 currentMonthCode
             )
         }

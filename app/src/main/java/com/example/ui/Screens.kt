@@ -76,6 +76,7 @@ sealed class Screen(val route: String) {
     object Payments : Screen("payments")
     object Exams : Screen("exams")
     object ReportsBackup : Screen("reports_backup")
+    object NewAcademicYear : Screen("new_academic_year")
 }
 
 // Custom Localized Header/Footer utilities
@@ -3802,6 +3803,10 @@ fun StudentProfileScreen(
     val group = remember(groups, groupId) { groups.find { it.id == groupId } }
     val isPerSessionPrivate = group?.groupType == GroupType.private && group?.billingMode == BillingMode.per_session
 
+    var selectedTab by remember { mutableStateOf(0) }
+    val studentEnrollments by viewModel.getEnrollmentsForStudent(studentId).collectAsState(initial = emptyList())
+    val allAcademicYearsList by viewModel.allAcademicYears.collectAsState()
+
     // Dialog sheets
     var showPaymentDialog by rememberSaveable { mutableStateOf(false) }
     var showExamDialog by rememberSaveable { mutableStateOf(false) }
@@ -4112,7 +4117,40 @@ fun StudentProfileScreen(
                 }
             }
 
+            item {
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.White,
+                    contentColor = PrimaryGreen,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("الحضور", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("التأخر", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("المالية والامتحانات", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        text = { Text("سجل السنوات", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    )
+                }
+            }
+
             // ATTENDANCE TIMELINE HISTORY
+            if (selectedTab == 0) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -4260,8 +4298,10 @@ fun StudentProfileScreen(
                     }
                 }
             }
+            }
 
             // LATE ATTENDANCE HISTORY SECTION
+            if (selectedTab == 1) {
             item {
                 val lateRecords = attendances.filter { it.status == AttendanceStatus.late }
                 Card(
@@ -4318,8 +4358,10 @@ fun StudentProfileScreen(
                     }
                 }
             }
+            }
 
             // PAYMENTS DETAILED SUMMARY
+            if (selectedTab == 2) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -4373,8 +4415,10 @@ fun StudentProfileScreen(
                     }
                 }
             }
+            }
 
             // EXAMS DETAILED GRADES
+            if (selectedTab == 2) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -4436,6 +4480,90 @@ fun StudentProfileScreen(
                                     }
                                 }
                                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(SurfaceContainer).padding(vertical = 2.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            }
+
+            // ACADEMIC YEARS HISTORY SECTION
+            if (selectedTab == 3) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(1.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("أرشيف وسجل السنوات الدراسية", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                            
+                            if (studentEnrollments.isEmpty()) {
+                                Text("لا يوجد سجل سنوات دراسية سابق مسجل لهذا الطالب.", fontSize = 12.sp, color = TextGray)
+                            } else {
+                                studentEnrollments.forEach { enrollment ->
+                                    val yearObj = allAcademicYearsList.find { it.id == enrollment.academicYearId }
+                                    val yearLabel = yearObj?.yearLabel ?: "غير معروف"
+                                    val groupObj = groups.find { it.id == enrollment.groupId }
+                                    val groupName = groupObj?.name ?: "مجموعة محذوفة"
+                                    
+                                    val yearAttendances = attendances.filter { it.academicYearId == enrollment.academicYearId }
+                                    val yearPayments = paymentList.filter { it.academicYearId == enrollment.academicYearId }
+                                    val yearExams = examScores.filter { it.academicYearId == enrollment.academicYearId }
+                                    
+                                    var isExpanded by remember { mutableStateOf(false) }
+                                    
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFFF9F9F9), RoundedCornerShape(10.dp))
+                                            .padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("العام الدراسي: $yearLabel", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen, fontSize = 13.sp)
+                                                Text("المجموعة: $groupName", fontSize = 11.sp, color = TextGray)
+                                            }
+                                            IconButton(onClick = { isExpanded = !isExpanded }) {
+                                                Icon(
+                                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                    contentDescription = "تفاصيل",
+                                                    tint = PrimaryGreen
+                                                )
+                                            }
+                                        }
+                                        
+                                        AnimatedVisibility(visible = isExpanded) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Divider()
+                                                // Attendance summary
+                                                val totalSessions = yearAttendances.size
+                                                val presentCount = yearAttendances.count { it.status == AttendanceStatus.present }
+                                                val absentCount = yearAttendances.count { it.status == AttendanceStatus.absent }
+                                                Text("📊 الحضور: $presentCount حاضر، $absentCount غائب من إجمالي $totalSessions حصص", fontSize = 11.sp, color = TextDark)
+                                                
+                                                // Payments summary
+                                                val totalPaid = yearPayments.filter { it.isPaid }.sumOf { it.amountPaid }
+                                                val totalDue = yearPayments.filter { !it.isPaid }.sumOf { it.amountDue }
+                                                Text("💰 المالية: تم سداد $totalPaid ج.م، ومستحق متبقي $totalDue ج.م", fontSize = 11.sp, color = TextDark)
+                                                
+                                                // Exams summary
+                                                if (yearExams.isNotEmpty()) {
+                                                    val avg = yearExams.map { it.score }.average()
+                                                    Text("📝 الاختبارات: متوسط التحصيل ${String.format(Locale.ENGLISH, "%.1f", avg)}% من إجمالي ${yearExams.size} اختبارات", fontSize = 11.sp, color = TextDark)
+                                                } else {
+                                                    Text("📝 الاختبارات: لا توجد درجات مسجلة في هذا العام", fontSize = 11.sp, color = TextGray)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -5089,7 +5217,8 @@ fun PaymentsScreen(
 // ==========================================
 @Composable
 fun ReportsBackupScreen(
-    viewModel: TeacherViewModel
+    viewModel: TeacherViewModel,
+    onNavigateToNewYear: () -> Unit
 ) {
     val context = LocalContext.current
     val groups by viewModel.groups.collectAsState()
@@ -5274,6 +5403,38 @@ fun ReportsBackupScreen(
                 fontSize = 12.sp,
                 color = TextGray
             )
+        }
+
+        // --- كارت بدء سنة دراسية جديدة ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.School, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("بدء سنة دراسية جديدة", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                    }
+                    Text(
+                        text = "يتيح لك هذا نقل الطلاب بين المجموعات بشكل جماعي لبدء العام الدراسي الجديد، مع القدرة على الاحتفاظ ببيانات تتبع السنوات السابقة كأرشيف للرجوع إليه في الملف التعريفي للطالب والبحث.",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        lineHeight = 16.sp
+                    )
+                    Button(
+                        onClick = { onNavigateToNewYear() },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                    ) {
+                        Text("البدء بالانتقال للعام الجديد", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
 
         // --- SECTION EXPORTER SHARING CHEETS ---
@@ -5758,15 +5919,40 @@ fun StudentsScreen(
 ) {
     val groups by viewModel.groups.collectAsState()
     val students by viewModel.students.collectAsState()
+    val academicYears by viewModel.allAcademicYears.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var showAddStudentDialog by remember { mutableStateOf(false) }
 
-    val filteredStudents = remember(searchQuery, students, groups) {
-        if (searchQuery.trim().isBlank()) {
+    var selectedYearFilter by remember { mutableStateOf<AcademicYear?>(null) }
+    var enrollmentsForYear by remember { mutableStateOf<List<Enrollment>>(emptyList()) }
+    var yearDropdownExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedYearFilter) {
+        if (selectedYearFilter != null) {
+            enrollmentsForYear = viewModel.getEnrollmentsForYearDirect(selectedYearFilter!!.id)
+        } else {
+            enrollmentsForYear = emptyList()
+        }
+    }
+
+    val filteredStudents = remember(searchQuery, students, groups, selectedYearFilter, enrollmentsForYear) {
+        val baseList = if (selectedYearFilter == null) {
             students
         } else {
-            students.filter { student ->
+            val enrolledStudentIds = enrollmentsForYear.map { it.studentId }.toSet()
+            val enrollmentGroupMap = enrollmentsForYear.associate { it.studentId to it.groupId }
+            students.filter { enrolledStudentIds.contains(it.id) }.map { student ->
+                student.copy().apply {
+                    groupId = enrollmentGroupMap[student.id] ?: 0
+                }
+            }
+        }
+
+        if (searchQuery.trim().isBlank()) {
+            baseList
+        } else {
+            baseList.filter { student ->
                 val grpName = groups.find { it.id == student.groupId }?.name ?: ""
                 student.name.contains(searchQuery, ignoreCase = true) ||
                         student.parentPhone.contains(searchQuery) ||
@@ -5820,6 +6006,48 @@ fun StudentsScreen(
                     focusedContainerColor = Color.White
                 )
             )
+
+            // Dynamic Year filter dropdown
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box {
+                    FilterChip(
+                        selected = selectedYearFilter != null,
+                        onClick = { yearDropdownExpanded = true },
+                        label = { Text(selectedYearFilter?.yearLabel ?: "جميع السنوات الدراسية") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.15f),
+                            selectedLabelColor = PrimaryDarkGreen
+                        )
+                    )
+                    
+                    DropdownMenu(
+                        expanded = yearDropdownExpanded,
+                        onDismissRequest = { yearDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("جميع السنوات الدراسية") },
+                            onClick = {
+                                selectedYearFilter = null
+                                yearDropdownExpanded = false
+                            }
+                        )
+                        academicYears.forEach { yr ->
+                            DropdownMenuItem(
+                                text = { Text(yr.yearLabel) },
+                                onClick = {
+                                    selectedYearFilter = yr
+                                    yearDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             Text(
                 text = "إجمالي عدد الطلاب: ${filteredStudents.size} طالب",

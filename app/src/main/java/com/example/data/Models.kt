@@ -36,20 +36,10 @@ data class GroupWithSessions(
 )
 
 @Entity(
-    tableName = "students",
-    foreignKeys = [
-        ForeignKey(
-            entity = Group::class,
-            parentColumns = ["id"],
-            childColumns = ["groupId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
-    indices = [Index(value = ["groupId"])]
+    tableName = "students"
 )
 data class Student(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val groupId: Int,
     val name: String,
     val parentPhone: String,
     val joinDate: String, // String representation stored as Long in DB
@@ -57,7 +47,9 @@ data class Student(
     val sessionsRemaining: Int = 0,
     val isActive: Boolean = true,  // Soft delete flag
     val deletedAt: String? = null  // تاريخ الحذف (اختياري للأرشفة)
-)
+) {
+    @androidx.room.Ignore var groupId: Int = 0
+}
 
 @Entity(
     tableName = "sessions",
@@ -116,7 +108,8 @@ data class AttendanceRecord(
     val timestamp: String = "",
     val status: AttendanceStatus = if (isPresent) AttendanceStatus.present else AttendanceStatus.absent,
     val attendanceDate: String = "",
-    val lateArrivalTime: String? = null
+    val lateArrivalTime: String? = null,
+    val academicYearId: Int = 0
 ) {
     @Ignore var groupId: Int = 0
     @Ignore var date: String = "" // stored as Long
@@ -153,7 +146,8 @@ data class DailyNote(
     val groupId: Int,
     val date: String, // YYYY-MM-DD format
     val sessionNumber: Int,
-    val content: String
+    val content: String,
+    val academicYearId: Int = 0
 )
 
 @Entity(
@@ -183,7 +177,8 @@ data class Payment(
     val receiptString: String? = null,
     val monthVal: Int = 0,
     val yearVal: Int = 0,
-    val groupId: Int = 0
+    val groupId: Int = 0,
+    val academicYearId: Int = 0
 )
 
 @Entity(
@@ -203,7 +198,8 @@ data class Exam(
     val groupId: Int,
     val name: String,
     val totalScore: Double,
-    val date: String // stored as Long in DB
+    val date: String, // stored as Long in DB
+    val academicYearId: Int = 0
 )
 
 @Entity(
@@ -242,5 +238,6 @@ data class ExamScore(
     val examName: String,
     val score: Double,
     val maxScore: Double,
-    val date: String
+    val date: String,
+    val academicYearId: Int = 0
 )

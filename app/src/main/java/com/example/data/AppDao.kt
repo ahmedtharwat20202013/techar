@@ -37,7 +37,13 @@ interface AppDao {
     @Query("SELECT * FROM students WHERE isActive = 0 ORDER BY name ASC")
     fun getDeletedStudentsFlow(): Flow<List<Student>>
 
-    @Query("SELECT * FROM students WHERE isActive = 1 AND groupId = :groupId ORDER BY name ASC")
+    @Query("""
+        SELECT s.* FROM students s
+        INNER JOIN enrollments e ON s.id = e.studentId
+        INNER JOIN academic_years y ON e.academicYearId = y.id
+        WHERE s.isActive = 1 AND e.groupId = :groupId AND y.isCurrent = 1
+        ORDER BY s.name ASC
+    """)
     fun getStudentsByGroup(groupId: Int): Flow<List<Student>>
 
     @Query("SELECT * FROM students WHERE id = :studentId")
@@ -54,6 +60,103 @@ interface AppDao {
 
     @Delete
     suspend fun deleteStudent(student: Student)
+
+
+    // --- ACADEMIC YEARS ---
+    @Query("SELECT * FROM academic_years ORDER BY startDate DESC")
+    fun getAllAcademicYears(): Flow<List<AcademicYear>>
+
+    @Query("SELECT * FROM academic_years WHERE isCurrent = 1 LIMIT 1")
+    suspend fun getCurrentAcademicYear(): AcademicYear?
+
+    @Query("SELECT * FROM academic_years WHERE isCurrent = 1 LIMIT 1")
+    fun getCurrentAcademicYearFlow(): Flow<AcademicYear?>
+
+    @Query("SELECT * FROM academic_years WHERE id = :yearId")
+    suspend fun getAcademicYearById(yearId: Int): AcademicYear?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAcademicYear(year: AcademicYear): Long
+
+    @Update
+    suspend fun updateAcademicYear(year: AcademicYear)
+
+    // --- ENROLLMENTS ---
+    @Query("SELECT * FROM enrollments WHERE academicYearId = :yearId")
+    fun getEnrollmentsForYear(yearId: Int): Flow<List<Enrollment>>
+
+    @Query("SELECT * FROM enrollments WHERE academicYearId = :yearId")
+    suspend fun getEnrollmentsForYearDirect(yearId: Int): List<Enrollment>
+
+    @Query("SELECT * FROM enrollments WHERE studentId = :studentId ORDER BY academicYearId DESC")
+    fun getEnrollmentsForStudent(studentId: Int): Flow<List<Enrollment>>
+
+    @Query("SELECT * FROM enrollments WHERE studentId = :studentId AND academicYearId = :yearId LIMIT 1")
+    suspend fun getEnrollment(studentId: Int, yearId: Int): Enrollment?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEnrollment(enrollment: Enrollment): Long
+
+    @Query("SELECT g.* FROM groups g INNER JOIN enrollments e ON g.id = e.groupId WHERE e.studentId = :studentId AND e.academicYearId = :yearId")
+    suspend fun getStudentGroupForYear(studentId: Int, yearId: Int): Group?
+
+    // --- TRANSACTION: START NEW YEAR ---
+    @Transaction
+    suspend fun startNewAcademicYearTransaction(
+        newYearLabel: String,
+        groupMappings: Map<Int, Int?> // oldGroupId -> newGroupId (null = graduated)
+    ): Boolean {
+        return try {
+            // 1. إغلاق السنة الحالية
+            val currentYear = getCurrentAcademicYear() ?: return false
+            updateAcademicYear(currentYear.copy(isCurrent = false, status = "closed"))
+            
+            // 2. إنشاء السنة الجديدة
+            val yearParts = newYearLabel.split("/")
+            if (yearParts.size < 2) return false
+            val startYear = yearParts[0].toIntOrNull() ?: 2026
+            val endYear = yearParts[1].toIntOrNull() ?: 2027
+            
+            val newYearId = insertAcademicYear(
+                AcademicYear(
+                    yearLabel = newYearLabel,
+                    startDate = "$startYear-09-01",
+                    endDate = "$endYear-06-30",
+                    isCurrent = true,
+                    status = "active"
+                )
+            ).toInt()
+            
+            // 3. نقل الطلاب
+            val currentEnrollments = getEnrollmentsForYearDirect(currentYear.id)
+            
+            for (enrollment in currentEnrollments) {
+                val newGroupId = groupMappings[enrollment.groupId]
+                
+                if (newGroupId == null) {
+                    // متخرج
+                    val student = getStudentById(enrollment.studentId)
+                    student?.let { updateStudent(it.copy(isActive = false)) }
+                    // Update enrollment status to graduated
+                    insertEnrollment(enrollment.copy(status = "graduated"))
+                } else {
+                    // تسجيل في السنة الجديدة
+                    insertEnrollment(
+                        Enrollment(
+                            studentId = enrollment.studentId,
+                            groupId = newGroupId,
+                            academicYearId = newYearId,
+                            status = "active",
+                            enrollmentDate = "2026-09-01"
+                        )
+                    )
+                }
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
 
     // --- SESSIONS ---
@@ -153,7 +256,15 @@ interface AppDao {
             it.groupType == GroupType.public || (it.groupType == GroupType.private && it.billingMode == BillingMode.monthly)
         }.map { it.id }.toSet()
 
+        val currentYear = getCurrentAcademicYear() ?: return
+        val enrollments = getEnrollmentsForYearDirect(currentYear.id)
+        val enrollmentsMap = enrollments.associate { it.studentId to it.groupId }
+
         val students = getAllStudentsDirect()
+        students.forEach { student ->
+            student.groupId = enrollmentsMap[student.id] ?: 0
+        }
+
         val eligibleStudents = students.filter { eligibleGroupIds.contains(it.groupId) }
 
         val groupMap = groups.associateBy { it.id }
@@ -168,7 +279,8 @@ interface AppDao {
                 amountDue = group.monthlyFee,
                 monthVal = bp.month,
                 yearVal = bp.year,
-                groupId = student.groupId
+                groupId = student.groupId,
+                academicYearId = currentYear.id
             )
             insertPayment(payment)
         }
@@ -475,7 +587,7 @@ interface AppDao {
     suspend fun getGradeByExamAndStudent(examId: Int, studentId: Int): Grade?
 
     @Query("""
-        SELECT g.id AS id, g.studentId AS studentId, e.name AS examName, g.score AS score, e.totalScore AS maxScore, e.date AS date
+        SELECT g.id AS id, g.studentId AS studentId, e.name AS examName, g.score AS score, e.totalScore AS maxScore, e.date AS date, e.academicYearId AS academicYearId
         FROM grades g
         INNER JOIN new_exams e ON g.examId = e.id
         ORDER BY e.date DESC
@@ -483,7 +595,7 @@ interface AppDao {
     fun getAllExamScores(): Flow<List<ExamScore>>
 
     @Query("""
-        SELECT g.id AS id, g.studentId AS studentId, e.name AS examName, g.score AS score, e.totalScore AS maxScore, e.date AS date
+        SELECT g.id AS id, g.studentId AS studentId, e.name AS examName, g.score AS score, e.totalScore AS maxScore, e.date AS date, e.academicYearId AS academicYearId
         FROM grades g
         INNER JOIN new_exams e ON g.examId = e.id
         WHERE g.studentId = :studentId
