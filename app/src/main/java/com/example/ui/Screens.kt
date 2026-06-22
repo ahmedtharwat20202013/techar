@@ -5828,6 +5828,18 @@ fun StartNewAcademicYearDialog(
     var newYearStartDate by remember { mutableStateOf(suggestedStartDate) }
     var newYearEndDate by remember { mutableStateOf(suggestedEndDate) }
 
+    LaunchedEffect(newYearStartDate, newYearEndDate) {
+        try {
+            val startParts = newYearStartDate.split("-")
+            val endParts = newYearEndDate.split("-")
+            if (startParts.size == 3 && endParts.size == 3) {
+                newYearLabel = "${startParts[0]}/${endParts[0]}"
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
+
     fun showDatePicker(currentDateStr: String, onDateSelected: (String) -> Unit) {
         val calendar = Calendar.getInstance()
         try {
@@ -6093,7 +6105,7 @@ fun StartNewAcademicYearDialog(
                                     ) {
                                         Icon(Icons.Default.Info, contentDescription = null, tint = PrimaryGreen)
                                         Text(
-                                            text = "نصيحة: يتم توليد التواريخ تلقائياً بناءً على العام السابق لضمان استمرارية التقويم دون انقطاع.",
+                                            text = "سيتم نقل الطلاب المختارين تلقائياً إلى العام الدراسي الجديد",
                                             fontSize = 11.sp,
                                             color = PrimaryDarkGreen,
                                             lineHeight = 16.sp
@@ -6477,10 +6489,33 @@ fun StartNewAcademicYearDialog(
                         Button(
                             onClick = {
                                 if (currentStep == 1) {
-                                    if (newYearLabel.isBlank() || newYearStartDate.isBlank() || newYearEndDate.isBlank()) {
-                                        Toast.makeText(context, "يرجى تعبئة كافة التواريخ والحقول بشكل صحيح للاستمرار.", Toast.LENGTH_SHORT).show()
+                                    val trimmedLabel = newYearLabel.trim()
+                                    if (trimmedLabel.isBlank() || newYearStartDate.isBlank() || newYearEndDate.isBlank()) {
+                                        Toast.makeText(context, "جميع الحقول مطلوبة، يرجى ملء كافة البيانات.", Toast.LENGTH_SHORT).show()
+                                    } else if (newYearStartDate >= newYearEndDate) {
+                                        Toast.makeText(context, "تاريخ نهاية العام يجب أن يكون بعد تاريخ البداية", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        currentStep++
+                                        val startParts = newYearStartDate.split("-")
+                                        val endParts = newYearEndDate.split("-")
+                                        if (startParts.size == 3 && endParts.size == 3) {
+                                            val startYear = startParts[0].toIntOrNull() ?: 0
+                                            val startMonth = startParts[1].toIntOrNull() ?: 0
+                                            val endYear = endParts[0].toIntOrNull() ?: 0
+                                            val endMonth = endParts[1].toIntOrNull() ?: 0
+
+                                            val diffMonths = (endYear - startYear) * 12 + (endMonth - startMonth)
+                                            val expectedName = "$startYear/$endYear"
+
+                                            if (diffMonths < 3) {
+                                                Toast.makeText(context, "الفترة بين البداية والنهاية يجب أن تكون 3 أشهر على الأقل", Toast.LENGTH_SHORT).show()
+                                            } else if (trimmedLabel != expectedName) {
+                                                Toast.makeText(context, "اسم العام يجب أن يكون $expectedName", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                currentStep++
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "صيغة التواريخ غير صالحة", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 } else {
                                     currentStep++
