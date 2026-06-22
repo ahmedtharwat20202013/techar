@@ -93,7 +93,40 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         )
     )
 
-    val paymentStats = combine(students, groups, repository.allPayments, selectedBillingPeriod) { stds, grps, pays, period ->
+    val enrollments = repository.allEnrollments.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val academicYears = repository.allAcademicYears.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val currentAcademicYear = repository.currentAcademicYearFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val allStudentsList = students
+    
+    val activeStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
+        val yId = currentYear?.id ?: 1
+        val activeStudentIds = enrs.filter { it.academicYearId == yId && it.status == "active" }.map { it.studentId }.toSet()
+        stds.filter { it.id in activeStudentIds && it.isActive && it.deletedAt == null }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val graduatedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
+        val yId = currentYear?.id ?: 1
+        val graduatedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "graduated" || it.status == "Graduated") }.map { it.studentId }.toSet()
+        stds.filter { it.id in graduatedStudentIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val droppedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
+        val yId = currentYear?.id ?: 1
+        val droppedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "dropped" || it.status == "Dropped" || it.status == "graduated") }.map { it.studentId }.toSet()
+        stds.filter { it.id in droppedStudentIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val paymentStats = combine(
+        students,
+        groups,
+        repository.allPayments,
+        combine(selectedBillingPeriod, repository.allEnrollments, repository.currentAcademicYearFlow) { a, b, c -> Triple(a, b, c) }
+    ) { stds, grps, pays, triple ->
+        val period = triple.first
+        val enrs = triple.second
+        val currentYear = triple.third
+        
         val groupMap = grps.associateBy { it.id }
         val periodPayments = pays.filter {
             val bp = it.getBillingPeriod()
@@ -101,19 +134,26 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         }
         val studentPayments = periodPayments.associateBy { it.studentId }
 
+        val activeEnrollments = if (currentYear != null) {
+            enrs.filter { it.academicYearId == currentYear.id && it.status == "active" }.associateBy { it.studentId }
+        } else {
+            emptyMap()
+        }
+
         var paidCount = 0
         var unpaidCount = 0
         var monthlyRevenue = 0.0
         var totalDebt = 0.0
 
         stds.forEach { student ->
+            val enrollment = activeEnrollments[student.id] ?: return@forEach
             val pay = studentPayments[student.id]
             if (pay != null && pay.isPaid) {
                 paidCount++
                 monthlyRevenue += pay.amountPaid
             } else {
                 unpaidCount++
-                val expectedFee = groupMap[student.groupId]?.monthlyFee ?: 200.0
+                val expectedFee = groupMap[enrollment.groupId]?.monthlyFee ?: 200.0
                 totalDebt += expectedFee
             }
         }
@@ -244,19 +284,29 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         payments,
         sessions,
         attendance,
-        exams
+        combine(exams, repository.allEnrollments, repository.currentAcademicYearFlow) { a, b, c -> Triple(a, b, c) }
     ) { array ->
         val studs = array[0] as List<Student>
         val grps = array[1] as List<Group>
         val pays = array[2] as List<Payment>
         val sess = array[3] as List<Session>
         val atts = array[4] as List<AttendanceRecord>
-        val exms = array[5] as List<ExamScore>
+        val triple = array[5] as Triple<List<ExamScore>, List<Enrollment>, AcademicYear?>
+        
+        val exms = triple.first
+        val enrs = triple.second
+        val currentYear = triple.third
 
         val activeMonth = getCurrentMonthYearArabic()
         val activeMonthCode = toYearMonth(activeMonth)
         
-        val totalStudents = studs.size
+        val activeEnrollments = if (currentYear != null) {
+            enrs.filter { it.academicYearId == currentYear.id && it.status == "active" }.associateBy { it.studentId }
+        } else {
+            emptyMap()
+        }
+
+        val totalStudents = activeEnrollments.size
         val totalGroups = grps.size
         
         val groupMap = grps.associateBy { it.id }
@@ -272,13 +322,14 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         var totalDebt = 0.0
         
         studs.forEach { student ->
+            val enrollment = activeEnrollments[student.id] ?: return@forEach
             val payment = studentPayments[student.id]
             if (payment != null && payment.isPaid) {
                 paidCount++
                 monthlyRevenue += payment.amountPaid
             } else {
                 unpaidCount++
-                val expectedFee = groupMap[student.groupId]?.monthlyFee ?: 200.0
+                val expectedFee = groupMap[enrollment.groupId]?.monthlyFee ?: 200.0
                 totalDebt += expectedFee
             }
         }
@@ -393,13 +444,13 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
             val currentMonthCode = toYearMonth(currentMonthArabic)
             repository.addStudentWithProRataBilling(
                 Student(
-                    groupId = groupId,
                     name = name,
                     parentPhone = parentPhone,
                     joinDate = joinDate,
                     notes = notes,
                     sessionsRemaining = sessionsRemaining
                 ),
+                groupId,
                 currentMonthCode
             )
         }
@@ -750,10 +801,15 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
 
     // --- SESSIONS TODAY QUICK ATTENDANCE UTILITY ---
     fun getSessionsForDateStatic(dateString: String): Flow<List<SessionTodayUi>> {
-        return combine(repository.allSessions, repository.allGroups, repository.allStudents) { sessList, groupList, studList ->
+        return combine(repository.allSessions, repository.allGroups, repository.allStudents, repository.allEnrollments, repository.currentAcademicYearFlow) { sessList, groupList, studList, enrs, currentYear ->
+            val activeEnrollments = if (currentYear != null) {
+                enrs.filter { it.academicYearId == currentYear.id && it.status == "active" }
+            } else {
+                emptyList()
+            }
             sessList.filter { it.date == dateString }.map { sess ->
                 val grp = groupList.find { it.id == sess.groupId }
-                val numStudents = studList.count { it.groupId == sess.groupId }
+                val numStudents = activeEnrollments.count { it.groupId == sess.groupId }
                 SessionTodayUi(
                     sessionId = sess.id,
                     groupId = sess.groupId,
@@ -769,6 +825,23 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         viewModelScope.launch {
             repository.clearAllDatabaseData()
             onComplete()
+        }
+    }
+
+    fun startNewAcademicYear(
+        newYear: AcademicYear,
+        enrollmentsToInsert: List<Enrollment>,
+        oldYearEnrollmentsToUpdate: List<Enrollment>,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.startNewAcademicYear(newYear, enrollmentsToInsert, oldYearEnrollmentsToUpdate)
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "حدث خطأ غير متوقع")
+            }
         }
     }
 }

@@ -369,6 +369,8 @@ fun DashboardScreen(
     val todayScheduledGroups by viewModel.todaysScheduledGroups.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val students by viewModel.students.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
     val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())
     
     // Dialog state for selections
@@ -514,7 +516,10 @@ fun DashboardScreen(
             }
         } else {
             items(todayScheduledGroups) { group ->
-                val groupStudsCount = students.count { it.groupId == group.id }
+                val groupStudsCount = remember(enrollments, currentYear, group.id) {
+                    val yId = currentYear?.id ?: 1
+                    enrollments.count { it.groupId == group.id && it.academicYearId == yId && it.status == "active" }
+                }
                 val todayDateStr = remember { com.example.data.DateUtils.formatStandard("yyyy-MM-dd") }
                 val recordedFlow = remember(group.id, todayDateStr) {
                     viewModel.isSessionRecordedTodayFlow(group.id, todayDateStr)
@@ -1193,6 +1198,8 @@ fun ClassesScreen(
 ) {
     val groups by viewModel.groups.collectAsState()
     val students by viewModel.students.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showAddGroupDialog by rememberSaveable { mutableStateOf(false) }
@@ -1262,7 +1269,10 @@ fun ClassesScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredGroups) { group ->
-                        val groupStudsCount = students.count { it.groupId == group.id }
+                        val groupStudsCount = remember(enrollments, currentYear, group.id) {
+                            val yId = currentYear?.id ?: 1
+                            enrollments.count { it.groupId == group.id && it.academicYearId == yId && it.status == "active" }
+                        }
                         GroupCard(
                             group = group,
                             studentCount = groupStudsCount,
@@ -3491,6 +3501,8 @@ fun AttendanceSheetScreen(
     var session by remember { mutableStateOf<Session?>(null) }
     var groupName by remember { mutableStateOf("اسم المجموعة") }
     val students by viewModel.students.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
     // Temporary attendances state
@@ -3516,7 +3528,16 @@ fun AttendanceSheetScreen(
     }
 
     // Filter students belonging only to this group
-    val activeGroupStudents = students.filter { session != null && it.groupId == session!!.groupId }
+    val activeGroupStudents = remember(session, students, enrollments, currentYear) {
+        if (session == null) emptyList()
+        else {
+            val yId = currentYear?.id ?: 1
+            val enrolledStudentIds = enrollments
+                .filter { it.groupId == session!!.groupId && it.academicYearId == yId && it.status == "active" }
+                .map { it.studentId }
+            students.filter { it.id in enrolledStudentIds }
+        }
+    }
 
     // Init attendance map with present for all students initially
     LaunchedEffect(activeGroupStudents) {
@@ -4753,6 +4774,8 @@ fun PaymentsScreen(
     val payments by viewModel.payments.collectAsState()
     val selectedPeriod by viewModel.selectedBillingPeriod.collectAsState()
     val stats by viewModel.paymentStats.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
 
     var selectedGroupIdx by remember { mutableIntStateOf(0) } // 0 = All Groups
     var selectedStatus by remember { mutableIntStateOf(0) } // 0 = All, 1 = Paid, 2 = Unpaid
@@ -4760,13 +4783,19 @@ fun PaymentsScreen(
     val displayedGroupsList = listOf(Group(id = 0, name = "جميع المجموعات", startDate = "", monthlyFee = 0.0, scheduleDays = "")) + groups
 
     // Mapping each student to their database payment record or building a virtual unpaid payment
-    val filteredPaymentsList = remember(students, payments, selectedPeriod, selectedGroupIdx, selectedStatus) {
+    val filteredPaymentsList = remember(students, payments, selectedPeriod, selectedGroupIdx, selectedStatus, enrollments, currentYear) {
         val legacyMonthStr = selectedPeriod.toLegacyString()
+        val yId = currentYear?.id ?: 1
+        val studentGroupMap = enrollments
+            .filter { it.academicYearId == yId && it.status == "active" }
+            .associate { it.studentId to it.groupId }
+
         students.map { student ->
             val pay = payments.find { 
                 it.studentId == student.id && 
                 ((it.monthVal == selectedPeriod.month && it.yearVal == selectedPeriod.year) || it.month == legacyMonthStr)
             }
+            val studentGroupId = studentGroupMap[student.id] ?: 0
             pay ?: Payment(
                 studentId = student.id, 
                 month = legacyMonthStr, 
@@ -4774,11 +4803,11 @@ fun PaymentsScreen(
                 amountPaid = 0.0,
                 monthVal = selectedPeriod.month,
                 yearVal = selectedPeriod.year,
-                groupId = student.groupId
+                groupId = studentGroupId
             )
         }.filter { payment ->
-            val stud = students.find { it.id == payment.studentId }
-            val matchesGroup = selectedGroupIdx == 0 || stud?.groupId == displayedGroupsList[selectedGroupIdx].id
+            val studentGroupId = studentGroupMap[payment.studentId] ?: 0
+            val matchesGroup = selectedGroupIdx == 0 || studentGroupId == displayedGroupsList[selectedGroupIdx].id
             val matchesStatus = when (selectedStatus) {
                 0 -> true
                 1 -> payment.isPaid
@@ -4991,13 +5020,14 @@ fun PaymentsScreen(
                 } else {
                     items(filteredPaymentsList) { payment ->
                         val stud = students.find { it.id == payment.studentId }
-                        val grp = groups.find { it.id == stud?.groupId }
+                        val studGroupId = payment.groupId
+                        val grp = groups.find { it.id == studGroupId }
 
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { stud?.let { onNavigateToStudent(it.id, it.groupId) } },
+                                .clickable { stud?.let { onNavigateToStudent(it.id, studGroupId) } },
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.cardElevation(1.dp)
                         ) {
@@ -5098,6 +5128,7 @@ fun ReportsBackupScreen(
     val exams by viewModel.exams.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val deletedStudents by viewModel.deletedStudents.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
 
     var backupTextState by remember { mutableStateOf("") }
     var restoreTextState by remember { mutableStateOf("") }
@@ -5107,6 +5138,7 @@ fun ReportsBackupScreen(
     fun generateOfflineBackupJson(): String {
         return try {
             val root = JSONObject()
+            val studentGroupMap = enrollments.associate { it.studentId to it.groupId }
 
             // 1. Groups to Json
             val grpsArray = JSONArray()
@@ -5126,7 +5158,7 @@ fun ReportsBackupScreen(
             students.forEach { s ->
                 val o = JSONObject()
                 o.put("id", s.id)
-                o.put("groupId", s.groupId)
+                o.put("groupId", studentGroupMap[s.id] ?: 0)
                 o.put("name", s.name)
                 o.put("parentPhone", s.parentPhone)
                 o.put("joinDate", s.joinDate)
@@ -5229,8 +5261,11 @@ fun ReportsBackupScreen(
             val header = "معرف الطالب,اسم الطالب,رقم هاتف ولي الأمر,الفصل الدراسي,تاريخ التسجيل,ملاحظات عامة\n"
             outputStream.write(header.toByteArray(Charsets.UTF_8))
 
+            val studentGroupMap = enrollments.associate { it.studentId to it.groupId }
+
             students.forEach { s ->
-                val grp = groups.find { it.id == s.groupId }
+                val sGrpId = studentGroupMap[s.id] ?: 0
+                val grp = groups.find { it.id == sGrpId }
                 val row = "${s.id},${s.name},${s.parentPhone},${grp?.name ?: "فصل غير معروف"},${s.joinDate},${s.notes}\n"
                 outputStream.write(row.toByteArray(Charsets.UTF_8))
             }
@@ -5471,7 +5506,8 @@ fun ReportsBackupScreen(
                         }
                     } else {
                         deletedStudents.forEach { student ->
-                            val groupName = groups.find { it.id == student.groupId }?.name ?: "فصل غير معروف"
+                            val studentEnrollmentGroupId = viewModel.enrollments.value.find { it.studentId == student.id }?.groupId ?: 0
+                            val groupName = groups.find { it.id == studentEnrollmentGroupId }?.name ?: "فصل غير معروف"
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -5661,14 +5697,24 @@ fun SearchSystemOverlay(
 ) {
     val groups by viewModel.groups.collectAsState()
     val students by viewModel.students.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
 
     var query by remember { mutableStateOf("") }
 
-    val results = remember(query, students, groups) {
+    val studentGroupMap = remember(enrollments, currentYear) {
+        val yId = currentYear?.id ?: 1
+        enrollments
+            .filter { it.academicYearId == yId && it.status == "active" }
+            .associate { it.studentId to it.groupId }
+    }
+
+    val results = remember(query, students, groups, studentGroupMap) {
         if (query.trim().isBlank()) emptyList()
         else {
             students.filter { student ->
-                val grpName = groups.find { it.id == student.groupId }?.name ?: ""
+                val sGrpId = studentGroupMap[student.id] ?: 0
+                val grpName = groups.find { it.id == sGrpId }?.name ?: ""
                 student.name.contains(query, ignoreCase = true) ||
                         student.parentPhone.contains(query) ||
                         grpName.contains(query, ignoreCase = true)
@@ -5719,7 +5765,8 @@ fun SearchSystemOverlay(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(results) { student ->
-                            val grpName = groups.find { it.id == student.groupId }?.name ?: ""
+                            val sGrpId = studentGroupMap[student.id] ?: 0
+                            val grpName = groups.find { it.id == sGrpId }?.name ?: ""
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -5727,7 +5774,7 @@ fun SearchSystemOverlay(
                                     .background(SoftBgGreen)
                                     .clickable {
                                         onDismissRequest()
-                                        onNavigateToStudent(student.id, student.groupId)
+                                        onNavigateToStudent(student.id, sGrpId)
                                     }
                                     .padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -5757,17 +5804,36 @@ fun StudentsScreen(
     onNavigateToStudent: (Int, Int) -> Unit
 ) {
     val groups by viewModel.groups.collectAsState()
-    val students by viewModel.students.collectAsState()
+    
+    val activeStudents by viewModel.activeStudents.collectAsState()
+    val graduatedStudents by viewModel.graduatedStudents.collectAsState()
+    val droppedStudents by viewModel.droppedStudents.collectAsState()
+    val allStudentsList by viewModel.allStudentsList.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var showAddStudentDialog by remember { mutableStateOf(false) }
+    var selectedFilter by rememberSaveable { mutableStateOf("active") } // "active", "graduated", "dropped", "all"
 
-    val filteredStudents = remember(searchQuery, students, groups) {
+    val studentsSource = when (selectedFilter) {
+        "active" -> activeStudents
+        "graduated" -> graduatedStudents
+        "dropped" -> droppedStudents
+        else -> allStudentsList
+    }
+
+    val studentGroupMap = remember(enrollments) {
+        enrollments.associate { it.studentId to it.groupId }
+    }
+
+    val filteredStudents = remember(searchQuery, studentsSource, groups, studentGroupMap) {
         if (searchQuery.trim().isBlank()) {
-            students
+            studentsSource
         } else {
-            students.filter { student ->
-                val grpName = groups.find { it.id == student.groupId }?.name ?: ""
+            studentsSource.filter { student ->
+                val sGrpId = studentGroupMap[student.id] ?: 0
+                val grpName = groups.find { it.id == sGrpId }?.name ?: ""
                 student.name.contains(searchQuery, ignoreCase = true) ||
                         student.parentPhone.contains(searchQuery) ||
                         grpName.contains(searchQuery, ignoreCase = true)
@@ -5821,6 +5887,29 @@ fun StudentsScreen(
                 )
             )
 
+            // Dynamic filter chips for Student tab
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    Triple("active", "نشطون", Color(0xFF2E7D32)),
+                    Triple("graduated", "خريجون", Color(0xFF1976D2)),
+                    Triple("dropped", "منقطعون", Color(0xFFC62828)),
+                    Triple("all", "الكل", Color(0xFF374151))
+                ).forEach { (filterType, label, color) ->
+                    val isSelected = selectedFilter == filterType
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedFilter = filterType },
+                        label = { Text(label, color = if (isSelected) Color.White else color, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = color
+                        )
+                    )
+                }
+            }
+
             Text(
                 text = "إجمالي عدد الطلاب: ${filteredStudents.size} طالب",
                 fontSize = 13.sp,
@@ -5843,14 +5932,15 @@ fun StudentsScreen(
                     }
                 } else {
                     items(filteredStudents) { student ->
-                        val grp = groups.find { it.id == student.groupId }
+                        val sGrpId = studentGroupMap[student.id] ?: 0
+                        val grp = groups.find { it.id == sGrpId }
                         val context = LocalContext.current
 
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onNavigateToStudent(student.id, student.groupId) },
+                                .clickable { onNavigateToStudent(student.id, sGrpId) },
                             shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(1.dp, SoftBgGreen),
                             elevation = CardDefaults.cardElevation(1.dp)
@@ -7470,7 +7560,7 @@ fun ExamsScreen(
                                                                 fontWeight = FontWeight.Bold,
                                                                 modifier = Modifier.clickable {
                                                                     if (relativeStudent != null) {
-                                                                        onNavigateToStudent(relativeStudent.id, relativeStudent.groupId)
+                                                                        onNavigateToStudent(relativeStudent.id, viewModel.enrollments.value.find { it.studentId == relativeStudent.id && it.academicYearId == (viewModel.currentAcademicYear.value?.id ?: 1) }?.groupId ?: 0)
                                                                     }
                                                                 }
                                                             )

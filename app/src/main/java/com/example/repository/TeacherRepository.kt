@@ -20,10 +20,32 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
 
     // Students
     val allStudents: Flow<List<Student>> = appDao.getAllStudents()
+    fun getActiveStudents(): Flow<List<Student>> = appDao.getActiveStudents()
+    fun getGraduatedStudents(): Flow<List<Student>> = appDao.getGraduatedStudents()
+    fun getDroppedStudents(): Flow<List<Student>> = appDao.getDroppedStudents()
     fun getDeletedStudentsFlow(): Flow<List<Student>> = appDao.getDeletedStudentsFlow()
     fun getStudentsByGroup(groupId: Int): Flow<List<Student>> = appDao.getStudentsByGroup(groupId)
     suspend fun getStudentById(id: Int): Student? = appDao.getStudentById(id)
     fun getStudentByIdFlow(id: Int): Flow<Student?> = appDao.getStudentByIdFlow(id)
+
+    // Academic Years
+    val allAcademicYears: Flow<List<AcademicYear>> = appDao.getAllAcademicYears()
+    val currentAcademicYearFlow: Flow<AcademicYear?> = appDao.getCurrentAcademicYearFlow()
+    suspend fun getCurrentAcademicYear(): AcademicYear? = appDao.getCurrentAcademicYear()
+    suspend fun insertAcademicYear(year: AcademicYear): Long = appDao.insertAcademicYear(year)
+    suspend fun updateAcademicYear(year: AcademicYear) = appDao.updateAcademicYear(year)
+    suspend fun getAcademicYearById(id: Int): AcademicYear? = appDao.getAcademicYearById(id)
+
+    // Enrollments
+    val allEnrollments: Flow<List<Enrollment>> = appDao.getAllEnrollments()
+    suspend fun insertEnrollment(enrollment: Enrollment): Long = appDao.insertEnrollment(enrollment)
+    suspend fun updateEnrollment(enrollment: Enrollment) = appDao.updateEnrollment(enrollment)
+    fun getEnrollmentsForStudentFlow(studentId: Int): Flow<List<Enrollment>> = appDao.getEnrollmentsForStudentFlow(studentId)
+    suspend fun getEnrollmentsForStudentDirect(studentId: Int): List<Enrollment> = appDao.getEnrollmentsForStudentDirect(studentId)
+    suspend fun getEnrollmentForStudentAndYear(studentId: Int, academicYearId: Int): Enrollment? = appDao.getEnrollmentForStudentAndYear(studentId, academicYearId)
+    fun getEnrollmentsForGroupAndYear(groupId: Int, academicYearId: Int): Flow<List<Enrollment>> = appDao.getEnrollmentsForGroupAndYear(groupId, academicYearId)
+    suspend fun getCurrentEnrollmentForStudent(studentId: Int): Enrollment? = appDao.getCurrentEnrollmentForStudent(studentId)
+    suspend fun deleteEnrollment(enrollment: Enrollment) = appDao.deleteEnrollment(enrollment)
 
     private fun forceDatabaseCheckpoint() {
         try {
@@ -203,14 +225,17 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
         val eligibleGroupIds = groupsList.filter { 
             it.groupType == GroupType.public || (it.groupType == GroupType.private && it.billingMode == BillingMode.monthly)
         }.map { it.id }.toSet()
-        val studentsList = appDao.getAllStudents().first().filter { eligibleGroupIds.contains(it.groupId) }
         
+        val currentYear = appDao.getCurrentAcademicYear() ?: return
+        val studentsList = appDao.getAllStudentsDirect()
         val paymentsList = appDao.getAllPayments().first().filter { it.month == currentMonthStr }
         val coveredStudentIds = paymentsList.map { it.studentId }.toSet()
         
         studentsList.forEach { student ->
             if (!coveredStudentIds.contains(student.id)) {
-                val group = groupsList.find { it.id == student.groupId }
+                val enrollment = appDao.getEnrollmentForStudentAndYear(student.id, currentYear.id) ?: return@forEach
+                if (enrollment.status != "active" || !eligibleGroupIds.contains(enrollment.groupId)) return@forEach
+                val group = groupsList.find { it.id == enrollment.groupId }
                 val amountDue = group?.monthlyFee ?: 200.0
                 val bp = BillingPeriod.parseBillingPeriod(currentMonthStr)
                 appDao.insertPayment(
@@ -222,15 +247,16 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
                         amountDue = amountDue,
                         monthVal = bp.month,
                         yearVal = bp.year,
-                        groupId = student.groupId
+                        groupId = enrollment.groupId,
+                        academicYearId = currentYear.id
                     )
                 )
             }
         }
     }
 
-    suspend fun addStudentWithProRataBilling(student: Student, currentMonthStr: String): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val id = appDao.addStudentWithProRataBillingTransaction(student, currentMonthStr)
+    suspend fun addStudentWithProRataBilling(student: Student, groupId: Int, currentMonthStr: String): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val id = appDao.addStudentWithProRataBillingTransaction(student, groupId, currentMonthStr)
         forceDatabaseCheckpoint()
         id
     }
@@ -242,6 +268,15 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
 
     suspend fun clearAllDatabaseData() {
         appDao.clearAllDatabaseData()
+    }
+
+    suspend fun startNewAcademicYear(
+        newYear: AcademicYear,
+        enrollmentsToInsert: List<Enrollment>,
+        oldYearEnrollmentsToUpdate: List<Enrollment>
+    ) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.startNewAcademicYearTransaction(newYear, enrollmentsToInsert, oldYearEnrollmentsToUpdate)
+        forceDatabaseCheckpoint()
     }
 
     suspend fun deleteOrphanRecentSessions() {

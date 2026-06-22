@@ -138,9 +138,11 @@ class StringListConverter {
         DailyNote::class,
         Payment::class,
         Exam::class,
-        Grade::class
+        Grade::class,
+        AcademicYear::class,
+        Enrollment::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class, EnumConverters::class, StringListConverter::class)
@@ -325,6 +327,102 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    // 1. Create academic_years table
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `academic_years` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `yearLabel` TEXT NOT NULL, 
+                            `startDate` TEXT NOT NULL, 
+                            `endDate` TEXT NOT NULL, 
+                            `isCurrent` INTEGER NOT NULL, 
+                            `status` TEXT NOT NULL
+                        )
+                    """.trimIndent())
+
+                    // 2. Insert default year "2025/2026"
+                    database.execSQL("""
+                        INSERT INTO `academic_years` (`yearLabel`, `startDate`, `endDate`, `isCurrent`, `status`)
+                        VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
+                    """.trimIndent())
+
+                    // 3. Create enrollments table
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `enrollments` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `studentId` INTEGER NOT NULL, 
+                            `groupId` INTEGER NOT NULL, 
+                            `academicYearId` INTEGER NOT NULL, 
+                            `status` TEXT NOT NULL, 
+                            `enrollmentDate` TEXT NOT NULL,
+                            FOREIGN KEY(`studentId`) REFERENCES `students`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                            FOREIGN KEY(`groupId`) REFERENCES `groups`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                            FOREIGN KEY(`academicYearId`) REFERENCES `academic_years`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                    """.trimIndent())
+
+                    database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_enrollments_studentId_academicYearId` ON `enrollments` (`studentId`, `academicYearId`)")
+                    database.execSQL("CREATE INDEX IF NOT EXISTS `index_enrollments_groupId` ON `enrollments` (`groupId`)")
+                    database.execSQL("CREATE INDEX IF NOT EXISTS `index_enrollments_academicYearId` ON `enrollments` (`academicYearId`)")
+
+                    // 4. Populate enrollments table from existing students group assignment (before we drop groupId column)
+                    database.execSQL("""
+                        INSERT OR IGNORE INTO `enrollments` (`studentId`, `groupId`, `academicYearId`, `status`, `enrollmentDate`)
+                        SELECT `id`, `groupId`, 1, 'active', `joinDate` FROM `students` WHERE `groupId` IS NOT NULL AND `groupId` != 0
+                    """.trimIndent())
+
+                    // 5. Add academicYearId column to related tables
+                    try {
+                        database.execSQL("ALTER TABLE `attendance_records` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 1")
+                    } catch (e: Exception) {
+                        Timber.e(e, "MIGRATION_12_13: Failed to add academicYearId to attendance_records")
+                    }
+                    try {
+                        database.execSQL("ALTER TABLE `payments` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 1")
+                    } catch (e: Exception) {
+                        Timber.e(e, "MIGRATION_12_13: Failed to add academicYearId to payments")
+                    }
+                    try {
+                        database.execSQL("ALTER TABLE `new_exams` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 1")
+                    } catch (e: Exception) {
+                        Timber.e(e, "MIGRATION_12_13: Failed to add academicYearId to new_exams")
+                    }
+                    try {
+                        database.execSQL("ALTER TABLE `daily_notes` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 1")
+                    } catch (e: Exception) {
+                        Timber.e(e, "MIGRATION_12_13: Failed to add academicYearId to daily_notes")
+                    }
+
+                    // 6. Migrating students table to drop 'groupId' column
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `students_new` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `name` TEXT NOT NULL, 
+                            `parentPhone` TEXT NOT NULL, 
+                            `joinDate` TEXT NOT NULL, 
+                            `notes` TEXT NOT NULL, 
+                            `sessionsRemaining` INTEGER NOT NULL, 
+                            `isActive` INTEGER NOT NULL DEFAULT 1, 
+                            `deletedAt` TEXT DEFAULT NULL
+                        )
+                    """.trimIndent())
+
+                    database.execSQL("""
+                        INSERT INTO `students_new` (`id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt`)
+                        SELECT `id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt` FROM `students`
+                    """.trimIndent())
+
+                    database.execSQL("DROP TABLE IF EXISTS `students`")
+                    database.execSQL("ALTER TABLE `students_new` RENAME TO `students`")
+
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_12_13 failed", e)
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -332,7 +430,20 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "teacher_manager_db"
                 )
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                        try {
+                            db.execSQL("""
+                                INSERT INTO `academic_years` (`yearLabel`, `startDate`, `endDate`, `isCurrent`, `status`)
+                                VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
+                            """.trimIndent())
+                        } catch (e: Exception) {
+                            Timber.e(e, "AppDatabase onCreate seeding failed")
+                        }
+                    }
+                })
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
