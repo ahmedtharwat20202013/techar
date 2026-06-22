@@ -49,15 +49,11 @@ class PinStorage(context: Context) {
         return input == getPin()
     }
 
-    private var activePrefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
-
     fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
-        activePrefsListener = listener
-        prefs.registerOnSharedPreferenceChangeListener(activePrefsListener)
+        prefs.registerOnSharedPreferenceChangeListener(listener)
     }
 
     fun unregisterListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
         prefs.unregisterOnSharedPreferenceChangeListener(listener)
-        activePrefsListener = null
     }
 }

@@ -138,11 +138,9 @@ class StringListConverter {
         DailyNote::class,
         Payment::class,
         Exam::class,
-        Grade::class,
-        AcademicYear::class,
-        Enrollment::class
+        Grade::class
     ],
-    version = 13,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class, EnumConverters::class, StringListConverter::class)
@@ -327,124 +325,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATION_12_13 = object : Migration(12, 13) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                try {
-                    // 1. إنشاء جدول academic_years
-                    database.execSQL("""
-                        CREATE TABLE IF NOT EXISTS `academic_years` (
-                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                            `yearLabel` TEXT NOT NULL,
-                            `startDate` TEXT NOT NULL,
-                            `endDate` TEXT NOT NULL,
-                            `isCurrent` INTEGER NOT NULL DEFAULT 0,
-                            `status` TEXT NOT NULL DEFAULT 'active'
-                        )
-                    """.trimIndent())
-                    
-                    // 2. إنشاء جدول enrollments
-                    database.execSQL("""
-                        CREATE TABLE IF NOT EXISTS `enrollments` (
-                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                            `studentId` INTEGER NOT NULL,
-                            `groupId` INTEGER NOT NULL,
-                            `academicYearId` INTEGER NOT NULL,
-                            `status` TEXT NOT NULL DEFAULT 'active',
-                            `enrollmentDate` TEXT NOT NULL DEFAULT '',
-                            FOREIGN KEY(`studentId`) REFERENCES `students`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                            FOREIGN KEY(`groupId`) REFERENCES `groups`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                            FOREIGN KEY(`academicYearId`) REFERENCES `academic_years`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
-                        )
-                    """.trimIndent())
-                    
-                    // 3. إنشاء فهرس فريد
-                    database.execSQL("""
-                        CREATE UNIQUE INDEX IF NOT EXISTS `index_enrollments_studentId_academicYearId` 
-                        ON `enrollments` (`studentId`, `academicYearId`)
-                    """.trimIndent())
-                    database.execSQL("CREATE INDEX IF NOT EXISTS `index_enrollments_groupId` ON `enrollments` (`groupId`)")
-                    database.execSQL("CREATE INDEX IF NOT EXISTS `index_enrollments_academicYearId` ON `enrollments` (`academicYearId`)")
-                    
-                    // 4. إضافة academicYearId للجداول الأخرى
-                    database.execSQL("ALTER TABLE `attendance_records` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 0")
-                    database.execSQL("ALTER TABLE `payments` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 0")
-                    database.execSQL("ALTER TABLE `new_exams` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 0")
-                    database.execSQL("ALTER TABLE `daily_notes` ADD COLUMN `academicYearId` INTEGER NOT NULL DEFAULT 0")
-                    
-                    // 5. إنشاء سنة افتراضية للبيانات الحالية
-                    database.execSQL("""
-                        INSERT INTO `academic_years` (`yearLabel`, `startDate`, `endDate`, `isCurrent`, `status`)
-                        VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
-                    """.trimIndent())
-                    
-                    // 6. نقل groupId من students إلى enrollments بالتحقق من وجود العمود
-                    val hasGroupId = try {
-                        val cursor = database.query("PRAGMA table_info(students)")
-                        var found = false
-                        while (cursor.moveToNext()) {
-                            val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
-                            if (name == "groupId") {
-                                found = true
-                                break
-                            }
-                        }
-                        cursor.close()
-                        found
-                    } catch (e: Exception) {
-                        true
-                    }
-
-                    if (hasGroupId) {
-                        try {
-                            database.execSQL("""
-                                INSERT INTO `enrollments` (`studentId`, `groupId`, `academicYearId`, `status`, `enrollmentDate`)
-                                SELECT `id`, `groupId`, 1, 'active', `joinDate` FROM `students`
-                            """.trimIndent())
-                        } catch (e: Exception) {
-                            Timber.e(e, "Failed to copy student groupId to enrollments")
-                        }
-
-                        // Recreate students table to drop the groupId column safely
-                        try {
-                            database.execSQL("""
-                                CREATE TABLE IF NOT EXISTS `students_new` (
-                                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                    `name` TEXT NOT NULL,
-                                    `parentPhone` TEXT NOT NULL,
-                                    `joinDate` TEXT NOT NULL,
-                                    `notes` TEXT NOT NULL,
-                                    `sessionsRemaining` INTEGER NOT NULL,
-                                    `isActive` INTEGER NOT NULL,
-                                    `deletedAt` TEXT
-                                )
-                            """.trimIndent())
-
-                            database.execSQL("""
-                                INSERT INTO `students_new` (`id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt`)
-                                SELECT `id`, `name`, `parentPhone`, `joinDate`, `notes`, `sessionsRemaining`, `isActive`, `deletedAt` FROM `students`
-                            """.trimIndent())
-
-                            database.execSQL("DROP TABLE IF EXISTS `students`")
-                            database.execSQL("ALTER TABLE `students_new` RENAME TO `students`")
-                            Timber.d("Successfully migrates: dropped groupId column from students table")
-                        } catch (e: Exception) {
-                            Timber.e(e, "Failed to drop groupId column from students table during migration")
-                        }
-                    } else {
-                        Timber.d("students table does not have groupId column, skipping transfer/drop block")
-                    }
-                    
-                    // 7. تحديث academicYearId للبيانات الحالية
-                    database.execSQL("UPDATE `attendance_records` SET `academicYearId` = 1")
-                    database.execSQL("UPDATE `payments` SET `academicYearId` = 1")
-                    database.execSQL("UPDATE `new_exams` SET `academicYearId` = 1")
-                    database.execSQL("UPDATE `daily_notes` SET `academicYearId` = 1")
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed in MIGRATION_12_13")
-                }
-            }
-        }
-
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -452,7 +332,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "teacher_manager_db"
                 )
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

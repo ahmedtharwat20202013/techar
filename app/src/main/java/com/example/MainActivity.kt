@@ -258,15 +258,7 @@ class MainActivity : ComponentActivity() {
                                     // G. Backup Exporter / Restore database manager
                                     composable(Screen.ReportsBackup.route) {
                                         ReportsBackupScreen(
-                                            viewModel = viewModel,
-                                            onNavigateToNewYear = { navController.navigate(Screen.NewAcademicYear.route) }
-                                        )
-                                    }
-
-                                    composable(Screen.NewAcademicYear.route) {
-                                        NewAcademicYearScreen(
-                                            viewModel = viewModel,
-                                            onNavigateBack = { navController.popBackStack() }
+                                            viewModel = viewModel
                                         )
                                     }
                                 }
