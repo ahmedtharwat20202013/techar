@@ -276,6 +276,9 @@ interface AppDao {
     @Query("SELECT * FROM attendance_records WHERE studentId = :studentId")
     fun getAttendanceForStudent(studentId: Int): Flow<List<AttendanceRecord>>
 
+    @Query("SELECT * FROM attendance_records WHERE studentId = :studentId")
+    suspend fun getAttendanceForStudentDirect(studentId: Int): List<AttendanceRecord>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAttendance(record: AttendanceRecord): Long
 
@@ -428,6 +431,10 @@ interface AppDao {
 
         // Insert new records and update student count
         for ((studentId, status) in recordsMap) {
+            val student = getStudentById(studentId)
+            if (student?.isDropped == true) {
+                continue
+            }
             val isPresent = status == AttendanceStatus.present || status == AttendanceStatus.late
             val recordLateTime = if (status == AttendanceStatus.late) {
                 lateArrivalTimesMap[studentId] ?: DateUtils.formatStandard("hh:mm a")
@@ -661,6 +668,34 @@ interface AppDao {
             insertEnrollment(enrollment.copy(academicYearId = newYearId))
         }
     }
+
+    // --- SNAPSHOT ARCHIVES ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGraduatedStudent(graduated: GraduatedStudent): Long
+
+    @Query("SELECT * FROM graduated_students ORDER BY id DESC")
+    fun getAllGraduatedStudentsFlow(): Flow<List<GraduatedStudent>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithdrawnStudent(withdrawn: WithdrawnStudent): Long
+
+    @Query("SELECT * FROM withdrawn_students ORDER BY id DESC")
+    fun getAllWithdrawnStudentsFlow(): Flow<List<WithdrawnStudent>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDroppedStudent(dropped: DroppedStudent): Long
+
+    @Query("SELECT * FROM dropped_students ORDER BY id DESC")
+    fun getAllDroppedStudentsFlow(): Flow<List<DroppedStudent>>
+
+    @Query("DELETE FROM graduated_students")
+    suspend fun clearGraduatedStudents()
+
+    @Query("DELETE FROM withdrawn_students")
+    suspend fun clearWithdrawnStudents()
+
+    @Query("DELETE FROM dropped_students")
+    suspend fun clearDroppedStudents()
 
     // --- DB HARD CLEAN UTILITIES ---
     @Query("DELETE FROM groups")

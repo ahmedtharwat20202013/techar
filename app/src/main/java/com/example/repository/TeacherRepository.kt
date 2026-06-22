@@ -107,6 +107,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
     // Payments
     val allPayments: Flow<List<Payment>> = appDao.getAllPayments()
     fun getPaymentsForStudent(studentId: Int): Flow<List<Payment>> = appDao.getPaymentsForStudent(studentId)
+    suspend fun getPaymentsForStudentDirect(studentId: Int): List<Payment> = appDao.getPaymentsForStudentDirect(studentId)
     suspend fun getPaymentForStudentAndMonth(studentId: Int, month: String): Payment? = appDao.getPaymentForStudentAndMonth(studentId, month)
     suspend fun insertPayment(payment: Payment): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val id = appDao.insertPayment(payment)
@@ -276,6 +277,28 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
         oldYearEnrollmentsToUpdate: List<Enrollment>
     ) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         appDao.startNewAcademicYearTransaction(newYear, enrollmentsToInsert, oldYearEnrollmentsToUpdate)
+        forceDatabaseCheckpoint()
+    }
+
+    suspend fun getAttendanceForStudentDirect(studentId: Int): List<AttendanceRecord> = appDao.getAttendanceForStudentDirect(studentId)
+
+    // Archives
+    val allGraduatedStudents: Flow<List<GraduatedStudent>> = appDao.getAllGraduatedStudentsFlow()
+    val allWithdrawnStudents: Flow<List<WithdrawnStudent>> = appDao.getAllWithdrawnStudentsFlow()
+    val allDroppedStudents: Flow<List<DroppedStudent>> = appDao.getAllDroppedStudentsFlow()
+
+    suspend fun insertGraduatedStudent(graduated: GraduatedStudent) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.insertGraduatedStudent(graduated)
+        forceDatabaseCheckpoint()
+    }
+
+    suspend fun insertWithdrawnStudent(withdrawn: WithdrawnStudent) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.insertWithdrawnStudent(withdrawn)
+        forceDatabaseCheckpoint()
+    }
+
+    suspend fun insertDroppedStudent(dropped: DroppedStudent) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.insertDroppedStudent(dropped)
         forceDatabaseCheckpoint()
     }
 

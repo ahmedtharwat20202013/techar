@@ -140,9 +140,12 @@ class StringListConverter {
         Exam::class,
         Grade::class,
         AcademicYear::class,
-        Enrollment::class
+        Enrollment::class,
+        GraduatedStudent::class,
+        WithdrawnStudent::class,
+        DroppedStudent::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class, EnumConverters::class, StringListConverter::class)
@@ -423,6 +426,79 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    database.execSQL("ALTER TABLE `students` ADD COLUMN `isDropped` INTEGER NOT NULL DEFAULT 0")
+                    database.execSQL("ALTER TABLE `students` ADD COLUMN `droppedAt` INTEGER DEFAULT NULL")
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_13_14: Failed to add drop columns to students table", e)
+                }
+                try {
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `graduated_students` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `originalStudentId` INTEGER NOT NULL, 
+                            `name` TEXT NOT NULL, 
+                            `parentPhone` TEXT, 
+                            `graduationYear` TEXT NOT NULL, 
+                            `graduationDate` INTEGER NOT NULL, 
+                            `finalGroupName` TEXT NOT NULL, 
+                            `totalAttendance` INTEGER NOT NULL, 
+                            `totalAbsence` INTEGER NOT NULL, 
+                            `totalPayments` REAL NOT NULL, 
+                            `totalDue` REAL NOT NULL, 
+                            `notes` TEXT
+                        )
+                    """.trimIndent())
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_13_14: Failed to create graduated_students table", e)
+                }
+                try {
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `withdrawn_students` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `originalStudentId` INTEGER NOT NULL, 
+                            `name` TEXT NOT NULL, 
+                            `parentPhone` TEXT, 
+                            `withdrawalYear` TEXT NOT NULL, 
+                            `withdrawalDate` INTEGER NOT NULL, 
+                            `finalGroupName` TEXT NOT NULL, 
+                            `reason` TEXT, 
+                            `totalAttendance` INTEGER NOT NULL, 
+                            `totalAbsence` INTEGER NOT NULL, 
+                            `totalPayments` REAL NOT NULL, 
+                            `totalDue` REAL NOT NULL, 
+                            `notes` TEXT
+                        )
+                    """.trimIndent())
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_13_14: Failed to create withdrawn_students table", e)
+                }
+                try {
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `dropped_students` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                            `originalStudentId` INTEGER NOT NULL, 
+                            `name` TEXT NOT NULL, 
+                            `parentPhone` TEXT, 
+                            `dropYear` TEXT NOT NULL, 
+                            `dropDate` INTEGER NOT NULL, 
+                            `finalGroupName` TEXT NOT NULL, 
+                            `reason` TEXT, 
+                            `totalAttendance` INTEGER NOT NULL, 
+                            `totalAbsence` INTEGER NOT NULL, 
+                            `totalPayments` REAL NOT NULL, 
+                            `totalDue` REAL NOT NULL, 
+                            `notes` TEXT
+                        )
+                    """.trimIndent())
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_13_14: Failed to create dropped_students table", e)
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -430,7 +506,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "teacher_manager_db"
                 )
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

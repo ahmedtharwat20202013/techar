@@ -46,7 +46,9 @@ data class Student(
     val notes: String = "",
     val sessionsRemaining: Int = 0,
     val isActive: Boolean = true,  // Soft delete flag
-    val deletedAt: String? = null  // تاريخ الحذف (اختياري للأرشفة)
+    val deletedAt: String? = null,  // تاريخ الحذف (اختياري للأرشفة)
+    val isDropped: Boolean = false,
+    val droppedAt: Long? = null
 )
 
 @Entity(
@@ -237,4 +239,54 @@ data class ExamScore(
     val score: Double,
     val maxScore: Double,
     val date: String
+)
+
+@Entity(tableName = "graduated_students")
+data class GraduatedStudent(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val originalStudentId: Int,        // ID الطالب الأصلي
+    val name: String,
+    val parentPhone: String?,
+    val graduationYear: String,         // "2026/2027"
+    val graduationDate: Long,             // وقت التخرج
+    val finalGroupName: String,         // اسم المجموعة الأخيرة
+    val totalAttendance: Int,           // إجمالي أيام الحضور
+    val totalAbsence: Int,              // إجمالي أيام الغياب
+    val totalPayments: Double,            // إجمالي المدفوعات
+    val totalDue: Double,               // إجمالي المستحق
+    val notes: String? = ""
+)
+
+@Entity(tableName = "withdrawn_students")
+data class WithdrawnStudent(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val originalStudentId: Int,        // ID الطالب الأصلي
+    val name: String,
+    val parentPhone: String?,
+    val withdrawalYear: String,         // "2026/2027"
+    val withdrawalDate: Long,           // وقت الانسحاب
+    val finalGroupName: String,         // اسم المجموعة الأخيرة
+    val reason: String?,                // سبب الانسحاب (اختياري)
+    val totalAttendance: Int,
+    val totalAbsence: Int,
+    val totalPayments: Double,
+    val totalDue: Double,
+    val notes: String? = ""
+)
+
+@Entity(tableName = "dropped_students")
+data class DroppedStudent(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val originalStudentId: Int,        // ID الطالب الأصلي
+    val name: String,
+    val parentPhone: String?,
+    val dropYear: String,               // "2026/2027"
+    val dropDate: Long,                 // وقت الانقطاع
+    val finalGroupName: String,         // اسم المجموعة الأخيرة
+    val reason: String?,                // سبب الانقطاع (اختياري)
+    val totalAttendance: Int,
+    val totalAbsence: Int,
+    val totalPayments: Double,
+    val totalDue: Double,
+    val notes: String? = ""
 )

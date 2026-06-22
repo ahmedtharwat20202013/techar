@@ -105,6 +105,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         stds.filter { it.id in activeStudentIds && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+
     val graduatedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val graduatedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "graduated" || it.status == "Graduated") }.map { it.studentId }.toSet()
@@ -114,7 +115,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val droppedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val droppedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "dropped" || it.status == "Dropped" || it.status == "graduated") }.map { it.studentId }.toSet()
-        stds.filter { it.id in droppedStudentIds }
+        stds.filter { it.id in droppedStudentIds || it.isDropped }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val paymentStats = combine(
@@ -168,6 +169,10 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val exams = repository.allExamScores.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val attendance = repository.allAttendance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val deletedStudents = repository.getDeletedStudentsFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val archiveGraduatedStudents = repository.allGraduatedStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val archiveWithdrawnStudents = repository.allWithdrawnStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val archiveDroppedStudents = repository.allDroppedStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentDate = MutableStateFlow(DateUtils.formatStandard("yyyy-MM-dd"))
     val currentDate = _currentDate.asStateFlow()
@@ -841,6 +846,235 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ غير متوقع")
+            }
+        }
+    }
+
+    fun dropStudent(studentId: Int, reason: String? = null, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val student = repository.getStudentById(studentId)
+                if (student == null) {
+                    onComplete()
+                    return@launch
+                }
+                if (student.isDropped) {
+                    _notification.emit("الطالب تم تسجيل انقطاعه بالفعل!")
+                    onComplete()
+                    return@launch
+                }
+                
+                // Calculate stats
+                val attendanceList = repository.getAttendanceForStudentDirect(studentId)
+                val paymentsList = repository.getPaymentsForStudentDirect(studentId)
+                val currentEnrollment = repository.getCurrentEnrollmentForStudent(studentId)
+                val finalGroupName = if (currentEnrollment != null) {
+                    repository.getGroupById(currentEnrollment.groupId)?.name ?: "بدون مجموعة"
+                } else {
+                    "بدون مجموعة"
+                }
+                
+                val totalAttendance = attendanceList.count { it.isPresent }
+                val totalAbsence = attendanceList.count { !it.isPresent }
+                val totalPayments = paymentsList.filter { it.isPaid }.sumOf { it.amountPaid }
+                val totalDue = paymentsList.filter { !it.isPaid }.sumOf { it.amountDue }
+                
+                val currentYear = repository.currentAcademicYearFlow.first()
+                val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+                
+                val dropped = DroppedStudent(
+                    originalStudentId = studentId,
+                    name = student.name,
+                    parentPhone = student.parentPhone,
+                    dropYear = currentYearLabel,
+                    dropDate = System.currentTimeMillis(),
+                    finalGroupName = finalGroupName,
+                    reason = reason,
+                    totalAttendance = totalAttendance,
+                    totalAbsence = totalAbsence,
+                    totalPayments = totalPayments,
+                    totalDue = totalDue,
+                    notes = student.notes
+                )
+                repository.insertDroppedStudent(dropped)
+                
+                repository.updateStudent(
+                    student.copy(
+                        isDropped = true,
+                        droppedAt = System.currentTimeMillis()
+                    )
+                )
+                
+                _notification.emit("تم تسجيل انقطاع الطالب وحفظ بياناته في الأرشيف")
+                onComplete()
+            } catch (e: Exception) {
+                _notification.emit("حدث خطأ أثناء تسجيل الانقطاع: ${e.message}")
+                onComplete()
+            }
+        }
+    }
+
+    fun migrateStudents(
+        newYear: AcademicYear,
+        promotions: List<Pair<Int, Int>>, // studentId to targetGroupId
+        graduations: List<Int>, // studentIds
+        withdrawals: List<Int>, // studentIds
+        drops: List<Int>, // studentIds
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val currentYear = repository.currentAcademicYearFlow.first()
+                val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+                
+                val enrollmentsToInsert = mutableListOf<Enrollment>()
+                val oldYearEnrollmentsToUpdate = mutableListOf<Enrollment>()
+                
+                // Promotions
+                for ((studentId, targetGroupId) in promotions) {
+                    val oldEnr = repository.getCurrentEnrollmentForStudent(studentId)
+                    if (oldEnr != null) {
+                        oldYearEnrollmentsToUpdate.add(oldEnr.copy(status = "transferred"))
+                    }
+                    enrollmentsToInsert.add(
+                        Enrollment(
+                            studentId = studentId,
+                            groupId = targetGroupId,
+                            academicYearId = 0, // Set during transaction
+                            status = "active",
+                            enrollmentDate = DateUtils.formatStandard("yyyy-MM-dd")
+                        )
+                    )
+                }
+                
+                // Graduations
+                for (studentId in graduations) {
+                    val oldEnr = repository.getCurrentEnrollmentForStudent(studentId)
+                    if (oldEnr != null) {
+                        oldYearEnrollmentsToUpdate.add(oldEnr.copy(status = "graduated"))
+                    }
+                    val student = repository.getStudentById(studentId)
+                    if (student != null) {
+                        val attendanceList = repository.getAttendanceForStudentDirect(studentId)
+                        val paymentsList = repository.getPaymentsForStudentDirect(studentId)
+                        val finalGroupName = if (oldEnr != null) {
+                            repository.getGroupById(oldEnr.groupId)?.name ?: "بدون مجموعة"
+                        } else {
+                            "بدون مجموعة"
+                        }
+                        val totalAttendance = attendanceList.count { it.isPresent }
+                        val totalAbsence = attendanceList.count { !it.isPresent }
+                        val totalPayments = paymentsList.filter { it.isPaid }.sumOf { it.amountPaid }
+                        val totalDue = paymentsList.filter { !it.isPaid }.sumOf { it.amountDue }
+                        
+                        repository.insertGraduatedStudent(
+                            GraduatedStudent(
+                                originalStudentId = studentId,
+                                name = student.name,
+                                parentPhone = student.parentPhone,
+                                graduationYear = currentYearLabel,
+                                graduationDate = System.currentTimeMillis(),
+                                finalGroupName = finalGroupName,
+                                totalAttendance = totalAttendance,
+                                totalAbsence = totalAbsence,
+                                totalPayments = totalPayments,
+                                totalDue = totalDue,
+                                notes = student.notes
+                            )
+                        )
+                    }
+                }
+                
+                // Withdrawals
+                for (studentId in withdrawals) {
+                    val oldEnr = repository.getCurrentEnrollmentForStudent(studentId)
+                    if (oldEnr != null) {
+                        oldYearEnrollmentsToUpdate.add(oldEnr.copy(status = "withdrawn"))
+                    }
+                    val student = repository.getStudentById(studentId)
+                    if (student != null) {
+                        val attendanceList = repository.getAttendanceForStudentDirect(studentId)
+                        val paymentsList = repository.getPaymentsForStudentDirect(studentId)
+                        val finalGroupName = if (oldEnr != null) {
+                            repository.getGroupById(oldEnr.groupId)?.name ?: "بدون مجموعة"
+                        } else {
+                            "بدون مجموعة"
+                        }
+                        val totalAttendance = attendanceList.count { it.isPresent }
+                        val totalAbsence = attendanceList.count { !it.isPresent }
+                        val totalPayments = paymentsList.filter { it.isPaid }.sumOf { it.amountPaid }
+                        val totalDue = paymentsList.filter { !it.isPaid }.sumOf { it.amountDue }
+                        
+                        repository.insertWithdrawnStudent(
+                            WithdrawnStudent(
+                                originalStudentId = studentId,
+                                name = student.name,
+                                parentPhone = student.parentPhone,
+                                withdrawalYear = currentYearLabel,
+                                withdrawalDate = System.currentTimeMillis(),
+                                finalGroupName = finalGroupName,
+                                reason = null,
+                                totalAttendance = totalAttendance,
+                                totalAbsence = totalAbsence,
+                                totalPayments = totalPayments,
+                                totalDue = totalDue,
+                                notes = student.notes
+                            )
+                        )
+                    }
+                }
+                
+                // Drops (anqataa)
+                for (studentId in drops) {
+                    val oldEnr = repository.getCurrentEnrollmentForStudent(studentId)
+                    if (oldEnr != null) {
+                        oldYearEnrollmentsToUpdate.add(oldEnr.copy(status = "dropped"))
+                    }
+                    val student = repository.getStudentById(studentId)
+                    if (student != null && !student.isDropped) {
+                        val attendanceList = repository.getAttendanceForStudentDirect(studentId)
+                        val paymentsList = repository.getPaymentsForStudentDirect(studentId)
+                        val finalGroupName = if (oldEnr != null) {
+                            repository.getGroupById(oldEnr.groupId)?.name ?: "بدون مجموعة"
+                        } else {
+                            "بدون مجموعة"
+                        }
+                        val totalAttendance = attendanceList.count { it.isPresent }
+                        val totalAbsence = attendanceList.count { !it.isPresent }
+                        val totalPayments = paymentsList.filter { it.isPaid }.sumOf { it.amountPaid }
+                        val totalDue = paymentsList.filter { !it.isPaid }.sumOf { it.amountDue }
+                        
+                        repository.insertDroppedStudent(
+                            DroppedStudent(
+                                originalStudentId = studentId,
+                                name = student.name,
+                                parentPhone = student.parentPhone,
+                                dropYear = currentYearLabel,
+                                dropDate = System.currentTimeMillis(),
+                                finalGroupName = finalGroupName,
+                                reason = null,
+                                totalAttendance = totalAttendance,
+                                totalAbsence = totalAbsence,
+                                totalPayments = totalPayments,
+                                totalDue = totalDue,
+                                notes = student.notes
+                            )
+                        )
+                        repository.updateStudent(
+                            student.copy(
+                                isDropped = true,
+                                droppedAt = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
+                
+                repository.startNewAcademicYear(newYear, enrollmentsToInsert, oldYearEnrollmentsToUpdate)
+                _notification.emit("تم بدء الموسم الدراسي الجديد وترحيل الطلاب بنجاح!")
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "حدث خطأ غير متوقع أثناء ترحيل الطلاب")
             }
         }
     }

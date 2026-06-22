@@ -4121,6 +4121,68 @@ fun StudentProfileScreen(
                         }
                     }
 
+                    // Row 2.5: Drop/Freeze Student (Anqataa)
+                    if (student != null) {
+                        var showDropConfirmPrompt by remember { mutableStateOf(false) }
+                        
+                        if (showDropConfirmPrompt) {
+                            AlertDialog(
+                                onDismissRequest = { showDropConfirmPrompt = false },
+                                title = { Text("تسجيل انقطاع الطالب", color = DangerRed, fontWeight = FontWeight.Bold) },
+                                text = { Text("هل أنت متأكد من تسجيل انقطاع الطالب \"${student.name}\" وتجميد بياناته؟\n\nتنبيه: سيتم حفظ كافة سجلات حضوره ودرجاته ومدفوعاته الحالية في الأرشيف فوراً، ولن يُسمح بإضافة أي بيانات جديدة له.") },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.dropStudent(student.id) {
+                                                showDropConfirmPrompt = false
+                                            }
+                                        }
+                                    ) {
+                                        Text("نعم، انقطع الطالب", color = DangerRed, fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showDropConfirmPrompt = false }) {
+                                        Text("إلغاء")
+                                    }
+                                }
+                            )
+                        }
+
+                        Button(
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            onClick = { 
+                                if (!student.isDropped) {
+                                    showDropConfirmPrompt = true 
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (student.isDropped) Color(0xFFF3F4F6) else Color(0xFFFFECEB)
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (student.isDropped) Icons.Default.Lock else Icons.Default.Block,
+                                    contentDescription = null,
+                                    tint = if (student.isDropped) Color.Gray else DangerRed,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (student.isDropped) "⚠️ الطالب منقطع حالياً (البيانات مجمدة)" else "تسجيل انقطاع الطالب (انقطع)",
+                                    color = if (student.isDropped) Color.Gray else DangerRed,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     // Row 3: Delete Student (spaced safely below)
                     Button(
                         modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -5880,6 +5942,7 @@ fun StartNewAcademicYearDialog(
 
     // Student promotion status
     val studentPromotionChoices = remember { mutableStateMapOf<Int, String>() }
+    val studentTargetGroups = remember { mutableStateMapOf<Int, Int>() }
 
     // Set initial configuration
     LaunchedEffect(activeGroups) {
@@ -5916,11 +5979,15 @@ fun StartNewAcademicYearDialog(
     }
 
     // Populate default student choices
-    LaunchedEffect(studentsInGroup) {
-        studentsInGroup.forEach { (_, studs) ->
+    LaunchedEffect(studentsInGroup, groupTargetMap.toMap()) {
+        studentsInGroup.forEach { (groupId, studs) ->
+            val defaultTarget = groupTargetMap[groupId] ?: 0
             studs.forEach { s ->
                 if (studentPromotionChoices[s.id] == null) {
                     studentPromotionChoices[s.id] = "promote" // Default is promote
+                }
+                if (studentTargetGroups[s.id] == null) {
+                    studentTargetGroups[s.id] = defaultTarget
                 }
             }
         }
