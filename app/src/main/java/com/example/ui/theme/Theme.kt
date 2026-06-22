@@ -16,8 +16,8 @@ private val DarkColorScheme =
     primary = AccentGreen,
     secondary = PrimaryGreen,
     tertiary = PrimaryDarkGreen,
-    background = TextDark,
-    surface = Color(0xFF1E211E),
+    background = Color(0xFF0F172A), // Premium dark slate background
+    surface = Color(0xFF1E293B),    // Slate-800 container surface
     onPrimary = Color.Black,
     onSecondary = Color.White,
     onBackground = Color.White,
@@ -36,9 +36,9 @@ private val LightColorScheme =
     onBackground = TextDark,
     onSurface = TextDark,
     surfaceVariant = Color.White,
-    onSurfaceVariant = Color(0xFF374151), // Premium Slate-700 (Very high contrast)
-    outline = Color(0xFF9CA3AF), // Premium Slate-400 (Clear, distinct borders)
-    outlineVariant = Color(0xFFD1D5DB) // Premium Slate-300
+    onSurfaceVariant = Color(0xFF334155), // Modern Slate-700 for high-contrast secondary texts
+    outline = Color(0xFF94A3B8),         // Modern Slate-400 for neat outlines
+    outlineVariant = Color(0xFFCBD5E1)   // Modern Slate-300 for soft dividers
   )
 
 @Composable

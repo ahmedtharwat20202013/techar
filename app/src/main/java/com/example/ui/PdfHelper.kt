@@ -217,16 +217,16 @@ object PdfHelper {
                     val sortedExams = exams.sortedByDescending { it.date }
                     
                     // --- STRICT GLOBAL COLOR CODES ---
-                    val colorPrimaryGreen = 0xFF004420.toInt()
-                    val colorLightGreen  = 0xFF2E7D32.toInt()
-                    val colorRed         = 0xFFD32F2F.toInt()
-                    val colorBlue        = 0xFF1976D2.toInt()
-                    val colorOrange      = 0xFFef6c00.toInt()
-                    val colorDarkGray    = 0xFF212121.toInt()
-                    val colorLightGray   = 0xFFF5F5F5.toInt()
+                    val colorPrimaryGreen = 0xFF0F172A.toInt() // Deep Slate
+                    val colorLightGreen  = 0xFF10B981.toInt() // Emerald
+                    val colorRed         = 0xFFEF4444.toInt() // Crimson Red
+                    val colorBlue        = 0xFF4F46E5.toInt() // Vibrant Indigo
+                    val colorOrange      = 0xFFF59E0B.toInt() // Amber Orange
+                    val colorDarkGray    = 0xFF0F172A.toInt()
+                    val colorLightGray   = 0xFFF8FAFC.toInt()
                     val colorWhite       = 0xFFFFFFFF.toInt()
-                    val colorGrayBorder  = 0xFFE0E0E0.toInt()
-                    val colorTextGray    = 0xFF808080.toInt()
+                    val colorGrayBorder  = 0xFFCBD5E1.toInt()
+                    val colorTextGray    = 0xFF64748B.toInt()
                     
                     // Common Paints
                     val paint = android.graphics.Paint()
@@ -346,7 +346,7 @@ object PdfHelper {
                     canvas1.drawText("إصدار التقرير: $todayStr", 60f, 70f, textPaint)
                     
                     // 2. Student Profile Card (Forest Green Rect with Rounded Corners)
-                    paint.color = 0xFF004D26.toInt()
+                    paint.color = 0xFF4F46E5.toInt()
                     canvas1.drawRoundRect(345f, 125f, 812f, 415f, 15f, 15f, paint)
                     
                     // Avatar Circle Container on the right
@@ -616,7 +616,7 @@ object PdfHelper {
                     var yPos2 = 255f
                     
                     // Header Row
-                    paint.color = 0xFF004D26.toInt()
+                    paint.color = 0xFF4F46E5.toInt()
                     canvas2.drawRoundRect(30f, yPos2, 565f, yPos2 + 28f, 6f, 6f, paint)
                     
                     textPaint.color = colorWhite
@@ -826,7 +826,7 @@ object PdfHelper {
                     var yPos3 = 255f
                     
                     // Header
-                    paint.color = 0xFF004D26.toInt()
+                    paint.color = 0xFF4F46E5.toInt()
                     canvas3.drawRoundRect(30f, yPos3, 565f, yPos3 + 28f, 6f, 6f, paint)
                     
                     textPaint.color = colorWhite
@@ -1056,7 +1056,7 @@ object PdfHelper {
                     var yPos4 = 255f
                     
                     // Header
-                    paint.color = 0xFF004D26.toInt()
+                    paint.color = 0xFF4F46E5.toInt()
                     canvas4.drawRoundRect(30f, yPos4, 565f, yPos4 + 28f, 6f, 6f, paint)
                     
                     textPaint.color = colorWhite

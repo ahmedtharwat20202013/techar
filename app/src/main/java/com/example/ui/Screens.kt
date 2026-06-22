@@ -1526,7 +1526,7 @@ fun DashboardGroupCard(
                 modifier = Modifier
                     .width(4.dp)
                     .matchParentSize()
-                    .background(Color(0xFF16A34A))
+                    .background(PrimaryGreen)
                     .align(Alignment.CenterStart)
             )
 
@@ -1589,7 +1589,7 @@ fun DashboardGroupCard(
                                 .height(38.dp)
                                 .testTag("open_attendance_notes_btn_${group.id}"),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF16A34A),
+                                containerColor = PrimaryGreen,
                                 contentColor = Color.White,
                                 disabledContainerColor = Color(0xFFE2E8F0),
                                 disabledContentColor = Color(0xFF94A3B8)
@@ -1625,7 +1625,7 @@ fun DashboardGroupCard(
                             .height(38.dp)
                             .testTag("record_session_btn_${group.id}"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF0D6EFD),
+                            containerColor = PrimaryGreen,
                             contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(8.dp),
@@ -4849,56 +4849,97 @@ fun PaymentsScreen(
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    IconButton(
-                        onClick = { 
-                            viewModel.selectedBillingPeriod.value = selectedPeriod.previousMonth()
-                        },
-                        modifier = Modifier.background(SoftBgGreen, CircleShape)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "الشهر السابق",
-                            tint = PrimaryDarkGreen
+                        IconButton(
+                            onClick = { 
+                                viewModel.selectedBillingPeriod.value = selectedPeriod.previousMonth()
+                            },
+                            modifier = Modifier.background(SoftBgGreen, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "الشهر السابق",
+                                tint = PrimaryDarkGreen
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "الشهر المالي الحالي",
+                                color = TextGray,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = selectedPeriod.formatArabicMonth(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkGreen
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { 
+                                viewModel.selectedBillingPeriod.value = selectedPeriod.nextMonth()
+                            },
+                            modifier = Modifier.background(SoftBgGreen, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "الشهر التالي",
+                                tint = PrimaryDarkGreen
+                            )
+                        }
+                    }
+
+                    val currentPeriod = remember {
+                        val cal = DateUtils.getCairoCalendar()
+                        BillingPeriod(
+                            month = cal.get(Calendar.MONTH) + 1,
+                            year = cal.get(Calendar.YEAR)
                         )
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "الشهر المالي الحالي",
-                            color = TextGray,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
+                    if (selectedPeriod != currentPeriod) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = SoftBgGreen.copy(alpha = 0.5f)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = selectedPeriod.formatArabicMonth(),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryDarkGreen
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { 
-                            viewModel.selectedBillingPeriod.value = selectedPeriod.nextMonth()
-                        },
-                        modifier = Modifier.background(SoftBgGreen, CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "الشهر التالي",
-                            tint = PrimaryDarkGreen
-                        )
+                        TextButton(
+                            onClick = {
+                                viewModel.selectedBillingPeriod.value = currentPeriod
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryDarkGreen)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Today,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "الذهاب للشهر الحالي",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -5133,6 +5174,14 @@ fun ReportsBackupScreen(
     var backupTextState by remember { mutableStateOf("") }
     var restoreTextState by remember { mutableStateOf("") }
     var showCsvSharingSuccess by remember { mutableStateOf(false) }
+    var showStartNewYearDialog by remember { mutableStateOf(false) }
+
+    if (showStartNewYearDialog) {
+        StartNewAcademicYearDialog(
+            viewModel = viewModel,
+            onDismissRequest = { showStartNewYearDialog = false }
+        )
+    }
 
     // Backup serializer logic
     fun generateOfflineBackupJson(): String {
@@ -5338,6 +5387,39 @@ fun ReportsBackupScreen(
                         modifier = Modifier.fillMaxWidth().height(44.dp)
                     ) {
                         Text("مشاركة وتصدير ملف Excel", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // --- START NEW ACADEMIC YEAR SECTION ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.School, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("بداية سنة دراسية جديدة (ترحيل الطلاب)", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                    }
+                    Text(
+                        text = "يتيح لك هذا القسم إعداد العام الدراسي الجديد وترحيل الطلاب تلقائياً أو فردياً بين المراحل والصفوف (مثلاً ترحيل طلاب رابع لخامس، وتخريج طلاب سادس)، مع الحفاظ الكامل على كافة الأرشيف المالي وحضور الأعوام السابقة.",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        lineHeight = 16.sp
+                    )
+
+                    Button(
+                        onClick = { showStartNewYearDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryDarkGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                    ) {
+                        Text("إعداد الموسم الجديد وترحيل الطلاب", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -5684,6 +5766,744 @@ fun ReportsBackupScreen(
         }
 
         item { Spacer(modifier = Modifier.height(84.dp)) }
+    }
+}
+
+
+@Composable
+fun StartNewAcademicYearDialog(
+    viewModel: TeacherViewModel,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+    val groups by viewModel.groups.collectAsState()
+    val students by viewModel.students.collectAsState()
+    val enrollments by viewModel.enrollments.collectAsState()
+    val currentYear by viewModel.currentAcademicYear.collectAsState()
+
+    var currentStep by remember { mutableStateOf(1) }
+
+    // --- STEP 1: New Year Metadata ---
+    val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+    val suggestedLabel = remember(currentYearLabel) {
+        try {
+            val parts = currentYearLabel.split("/")
+            if (parts.size == 2) {
+                val y1 = parts[0].toIntOrNull()
+                val y2 = parts[1].toIntOrNull()
+                if (y1 != null && y2 != null) {
+                    "${y1 + 1}/${y2 + 1}"
+                } else "2026/2027"
+            } else "2026/2027"
+        } catch (e: Exception) {
+            "2026/2027"
+        }
+    }
+    val suggestedStartDate = remember(currentYear) {
+        try {
+            val currentEnd = currentYear?.endDate ?: "2026-06-30"
+            val parts = currentEnd.split("-")
+            if (parts.size == 3) {
+                val nextYear = parts[0].toInt() + 1
+                "$nextYear-09-01"
+            } else "2026-09-01"
+        } catch (e: Exception) {
+            "2026-09-01"
+        }
+    }
+    val suggestedEndDate = remember(currentYear) {
+        try {
+            val currentEnd = currentYear?.endDate ?: "2026-06-30"
+            val parts = currentEnd.split("-")
+            if (parts.size == 3) {
+                val nextYear = parts[0].toInt() + 1
+                "$nextYear-06-30"
+            } else "2027-06-30"
+        } catch (e: Exception) {
+            "2027-06-30"
+        }
+    }
+
+    var newYearLabel by remember { mutableStateOf(suggestedLabel) }
+    var newYearStartDate by remember { mutableStateOf(suggestedStartDate) }
+    var newYearEndDate by remember { mutableStateOf(suggestedEndDate) }
+
+    // --- STEP 2: Group & Student Mappings ---
+    val activeGroups = remember(groups, enrollments, currentYear) {
+        val yId = currentYear?.id ?: 1
+        val enrolledGroupIds = enrollments.filter { it.academicYearId == yId && it.status == "active" }.map { it.groupId }.toSet()
+        groups.filter { it.id in enrolledGroupIds }
+    }
+
+    // Default target group mapping (Heuristic based or manually changed)
+    val groupTargetMap = remember { mutableStateMapOf<Int, Int>() }
+    
+    // Group expansion state
+    val expandedGroups = remember { mutableStateMapOf<Int, Boolean>() }
+
+    // Student promotion status
+    val studentPromotionChoices = remember { mutableStateMapOf<Int, String>() }
+
+    // Set initial configuration
+    LaunchedEffect(activeGroups) {
+        activeGroups.forEach { g ->
+            if (groupTargetMap[g.id] == null) {
+                // Determine heuristic target
+                val candidates = groups.filter { it.id != g.id }
+                var choice = 0 // Default to Graduate (0)
+                if (g.name.contains("رابع") || g.name.contains("الرابع")) {
+                    candidates.find { it.name.contains("خامس") || it.name.contains("الخامس") }?.let { choice = it.id }
+                } else if (g.name.contains("خامس") || g.name.contains("الخامس")) {
+                    candidates.find { it.name.contains("سادس") || it.name.contains("السادس") }?.let { choice = it.id }
+                } else if (g.name.contains("أول") || g.name.contains("الأول")) {
+                    candidates.find { it.name.contains("ثاني") || it.name.contains("الثاني") }?.let { choice = it.id }
+                } else if (g.name.contains("ثاني") || g.name.contains("الثاني")) {
+                    candidates.find { it.name.contains("ثالث") || it.name.contains("الثالث") }?.let { choice = it.id }
+                } else if (g.name.contains("ثالث") || g.name.contains("الثالث")) {
+                    candidates.find { it.name.contains("رابع") || it.name.contains("الرابع") }?.let { choice = it.id }
+                }
+                groupTargetMap[g.id] = choice
+            }
+        }
+    }
+
+    // Key: GroupID -> List of Students
+    val studentsInGroup = remember(students, enrollments, currentYear) {
+        val yId = currentYear?.id ?: 1
+        activeGroups.associate { g ->
+            val enrolledStudentIds = enrollments
+                .filter { it.groupId == g.id && it.academicYearId == yId && it.status == "active" }
+                .map { it.studentId }
+            g.id to students.filter { it.id in enrolledStudentIds && it.isActive && it.deletedAt == null }
+        }
+    }
+
+    // Populate default student choices
+    LaunchedEffect(studentsInGroup) {
+        studentsInGroup.forEach { (_, studs) ->
+            studs.forEach { s ->
+                if (studentPromotionChoices[s.id] == null) {
+                    studentPromotionChoices[s.id] = "promote" // Default is promote
+                }
+            }
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { onDismissRequest() },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            tonalElevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header of Dialog
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { onDismissRequest() }) {
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق")
+                    }
+                    Text(
+                        text = "بدء الموسم الدراسي الجديد",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryDarkGreen
+                    )
+                    Icon(
+                        imageVector = Icons.Default.School,
+                        contentDescription = null,
+                        tint = PrimaryDarkGreen,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                // Step indicators
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    for (step in 1..3) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(6.dp)
+                                .background(
+                                    if (step <= currentStep) PrimaryGreen else Color.LightGray.copy(alpha = 0.5f),
+                                    RoundedCornerShape(3.dp)
+                                )
+                        )
+                    }
+                }
+
+                // Main Content depending on step
+                Box(modifier = Modifier.weight(1f)) {
+                    when (currentStep) {
+                        1 -> {
+                            // Step 1: Years metadata
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "الخطوة الأولى: تحديد بيانات العام الدراسي الجديد",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    text = "الرجاء تأكيد تسمية العام الجديد وتواريخ بدايته ونهايته. سيقوم هذا الإجراء بأرشفة العام الحالي (${currentYearLabel}) وجعله غير نشط.",
+                                    fontSize = 12.sp,
+                                    color = TextGray,
+                                    lineHeight = 18.sp
+                                )
+
+                                OutlinedTextField(
+                                    value = newYearLabel,
+                                    onValueChange = { newYearLabel = it },
+                                    label = { Text("مسمى العام الدراسي الجديد") },
+                                    placeholder = { Text("مثال: 2026/2027") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = newYearStartDate,
+                                    onValueChange = { newYearStartDate = it },
+                                    label = { Text("تاريخ بداية العام الجديد (YYYY-MM-DD)") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = newYearEndDate,
+                                    onValueChange = { newYearEndDate = it },
+                                    label = { Text("تاريخ نهاية العام الجديد (YYYY-MM-DD)") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = SoftBgGreen),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Info, contentDescription = null, tint = PrimaryGreen)
+                                        Text(
+                                            text = "نصيحة: يتم توليد التواريخ تلقائياً بناءً على العام السابق لضمان استمرارية التقويم دون انقطاع.",
+                                            fontSize = 11.sp,
+                                            color = PrimaryDarkGreen,
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            // Step 2: Mappings
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                Text(
+                                    text = "الخطوة الثانية: تحديد صفوف الوجهة والطلاب",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "اختر الوجهة التلقائية لكل مجموعة، ثم حدد الإجراء المطلوب لكل طالب بشكل فردي (ترحيل أو إعادة أو تخرج أو مغادرة).",
+                                    fontSize = 11.sp,
+                                    color = TextGray,
+                                    lineHeight = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                if (activeGroups.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("لا يوجد مجموعات نشطة حالياً في هذا العام الدراسي ترحيل طلابها.", color = TextGray)
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        items(activeGroups) { group ->
+                                            var showGroupDropdown by remember { mutableStateOf(false) }
+                                            val currentTargetId = groupTargetMap[group.id] ?: 0
+                                            val groupStudentsList = studentsInGroup[group.id] ?: emptyList()
+                                            val isExpanded = expandedGroups[group.id] ?: false
+
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                                                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+                                                shape = RoundedCornerShape(16.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    // Group Header
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.School, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                                            Text(
+                                                                text = group.name,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 14.sp,
+                                                                color = Color.Black
+                                                            )
+                                                            Text(
+                                                                text = "(${groupStudentsList.size} طالب)",
+                                                                fontSize = 12.sp,
+                                                                color = TextGray
+                                                            )
+                                                        }
+                                                        
+                                                        IconButton(onClick = { expandedGroups[group.id] = !isExpanded }) {
+                                                            Icon(
+                                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                                contentDescription = "عرض الطلاب"
+                                                            )
+                                                        }
+                                                    }
+
+                                                    // Default target dropdown
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text("الوجهة الافتراضية:", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+                                                        
+                                                        Box {
+                                                            val targetText = when (currentTargetId) {
+                                                                0 -> "🎓 تخرج تلقائي"
+                                                                -1 -> "❌ انقطاع تلقائي"
+                                                                else -> groups.find { it.id == currentTargetId }?.name ?: "🎓 تخرج تلقائي"
+                                                            }
+                                                            Surface(
+                                                                onClick = { showGroupDropdown = true },
+                                                                border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.3f)),
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                color = SoftBgGreen,
+                                                                modifier = Modifier.widthIn(min = 160.dp)
+                                                            ) {
+                                                                Row(
+                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    Text(targetText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                                                                    Icon(Icons.Default.ExpandMore, contentDescription = null, tint = PrimaryDarkGreen, modifier = Modifier.size(16.dp))
+                                                                }
+                                                            }
+
+                                                            DropdownMenu(
+                                                                expanded = showGroupDropdown,
+                                                                onDismissRequest = { showGroupDropdown = false }
+                                                            ) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("🎓 تخرج تلقائي لجميع الطلاب", fontSize = 12.sp) },
+                                                                    onClick = {
+                                                                        groupTargetMap[group.id] = 0
+                                                                        showGroupDropdown = false
+                                                                    }
+                                                                )
+                                                                DropdownMenuItem(
+                                                                    text = { Text("❌ انقطاع تلقائي لجميع الطلاب", fontSize = 12.sp) },
+                                                                    onClick = {
+                                                                        groupTargetMap[group.id] = -1
+                                                                        showGroupDropdown = false
+                                                                    }
+                                                                )
+                                                                HorizontalDivider()
+                                                                groups.forEach { candidate ->
+                                                                    if (candidate.id != group.id) {
+                                                                        DropdownMenuItem(
+                                                                            text = { Text("🔄 ترحيل إلى: ${candidate.name}", fontSize = 12.sp) },
+                                                                            onClick = {
+                                                                                groupTargetMap[group.id] = candidate.id
+                                                                                showGroupDropdown = false
+                                                                            }
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // Students customizable list
+                                                    if (isExpanded) {
+                                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                                        if (groupStudentsList.isEmpty()) {
+                                                            Text("لا يوجد طلاب نشطين في هذه المجموعة.", color = TextGray, fontSize = 11.sp)
+                                                        } else {
+                                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                                groupStudentsList.forEach { student ->
+                                                                    val selectedChoice = studentPromotionChoices[student.id] ?: "promote"
+                                                                    Column(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                                                            .border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                                                            .padding(8.dp),
+                                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                                    ) {
+                                                                        Row(
+                                                                            modifier = Modifier.fillMaxWidth(),
+                                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                                            verticalAlignment = Alignment.CenterVertically
+                                                                        ) {
+                                                                            Text(
+                                                                                text = student.name,
+                                                                                fontWeight = FontWeight.Bold,
+                                                                                fontSize = 13.sp,
+                                                                                color = Color.Black
+                                                                            )
+                                                                            val displayChoiceText = when (selectedChoice) {
+                                                                                "promote" -> "انتقال تلقائي"
+                                                                                "repeat" -> "إعادة تكرار"
+                                                                                "graduated" -> "خريج"
+                                                                                "dropped" -> "مغادرة"
+                                                                                else -> "انتقال تلقائي"
+                                                                            }
+                                                                            Text(
+                                                                                text = displayChoiceText,
+                                                                                fontSize = 11.sp,
+                                                                                fontWeight = FontWeight.Bold,
+                                                                                color = when (selectedChoice) {
+                                                                                    "promote" -> SuccessGreen
+                                                                                    "repeat" -> Color(0xFFE65100)
+                                                                                    "graduated" -> AccentGreen
+                                                                                    else -> DangerRed
+                                                                                }
+                                                                            )
+                                                                        }
+
+                                                                        // Choice Bar
+                                                                        Row(
+                                                                            modifier = Modifier.fillMaxWidth(),
+                                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                        ) {
+                                                                            val choices = listOf(
+                                                                                "promote" to "ترحيل",
+                                                                                "repeat" to "إعادة",
+                                                                                "graduated" to "تخرج",
+                                                                                "dropped" to "مغادرة"
+                                                                            )
+                                                                            choices.forEach { (key, label) ->
+                                                                                val isSelected = selectedChoice == key
+                                                                                Box(
+                                                                                    modifier = Modifier
+                                                                                        .weight(1f)
+                                                                                        .background(
+                                                                                            if (isSelected) {
+                                                                                                when (key) {
+                                                                                                    "promote" -> SuccessGreen.copy(alpha = 0.15f)
+                                                                                                    "repeat" -> Color(0xFFFFF3E0)
+                                                                                                    "graduated" -> SoftBgGreen
+                                                                                                    else -> DangerRed.copy(alpha = 0.15f)
+                                                                                                }
+                                                                                            } else Color(0xFFF3F4F6),
+                                                                                            RoundedCornerShape(6.dp)
+                                                                                        )
+                                                                                        .border(
+                                                                                            1.dp,
+                                                                                            if (isSelected) {
+                                                                                                when (key) {
+                                                                                                    "promote" -> SuccessGreen
+                                                                                                    "repeat" -> Color(0xFFE65100)
+                                                                                                    "graduated" -> AccentGreen
+                                                                                                    else -> DangerRed
+                                                                                                }
+                                                                                            } else Color.Transparent,
+                                                                                            RoundedCornerShape(6.dp)
+                                                                                        )
+                                                                                        .clickable { studentPromotionChoices[student.id] = key }
+                                                                                        .padding(vertical = 6.dp),
+                                                                                    contentAlignment = Alignment.Center
+                                                                                ) {
+                                                                                    Text(
+                                                                                        text = label,
+                                                                                        fontSize = 11.sp,
+                                                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                                        color = if (isSelected) {
+                                                                                            when (key) {
+                                                                                                "promote" -> SuccessGreen
+                                                                                                "repeat" -> Color(0xFFD84315)
+                                                                                                "graduated" -> PrimaryDarkGreen
+                                                                                                else -> DangerRed
+                                                                                            }
+                                                                                        } else Color.Gray
+                                                                                    )
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        3 -> {
+                            // Step 3: Confirmation Summary
+                            val summaryPromote = studentPromotionChoices.values.count { it == "promote" }
+                            val summaryRepeat = studentPromotionChoices.values.count { it == "repeat" }
+                            val summaryGraduated = studentPromotionChoices.values.count { it == "graduated" }
+                            val summaryDropped = studentPromotionChoices.values.count { it == "dropped" }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "الخطوة الثالثة: مراجعة ملخص الترحيل والتأكيد",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    text = "الرجاء مراجعة الإجراءات الإجمالية بالأسفل جيداً قبل التنفيذ الفعلي للسنة الدراسية الجديدة.",
+                                    fontSize = 12.sp,
+                                    color = TextGray
+                                )
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text("ملخص ترحيل الطلاب:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PrimaryDarkGreen)
+                                        HorizontalDivider()
+                                        
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("سنة دراسية جديدة مضافة:", fontSize = 12.sp, color = TextGray)
+                                            Text(newYearLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Black)
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("عدد الطلاب المنتقلون لصفوف جديدة:", fontSize = 12.sp, color = TextGray)
+                                            Text("$summaryPromote طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SuccessGreen)
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("عدد الطلاب الباقون للإعادة:", fontSize = 12.sp, color = TextGray)
+                                            Text("$summaryRepeat طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFE65100))
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("عدد الطلاب المتخرجين:", fontSize = 12.sp, color = TextGray)
+                                            Text("$summaryGraduated طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AccentGreen)
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("عدد الطلاب المنقطعين/المغادرين:", fontSize = 12.sp, color = TextGray)
+                                            Text("$summaryDropped طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DangerRed)
+                                        }
+                                    }
+                                }
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                             text = "⚠️ تنبيه هام للغاية",
+                                             fontWeight = FontWeight.Bold,
+                                             fontSize = 13.sp,
+                                             color = Color(0xFFE65100)
+                                        )
+                                        Text(
+                                            text = "انتقال الطلاب يعني إفراغ المجموعة السابقة لتكون جاهزة لاستقبال طلاب جدد ومسح جداول الحصص الأسبوعية السابقة وبدء صفحة مالية جديدة فارغة للعام الجديد. ستبقى كافة تقارير الدفع وسجلات الحضور والغياب للطلاب ونتائج الامتحانات السابقة مؤرشفة ومحفوظة بالاسم والتواريخ للعودة وتصفحها بأي وقت.",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFD84315),
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Controls footer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (currentStep > 1) {
+                        Button(
+                            onClick = { currentStep-- },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("السابق", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = { onDismissRequest() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("إلغاء", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (currentStep < 3) {
+                        Button(
+                            onClick = {
+                                if (currentStep == 1) {
+                                    if (newYearLabel.isBlank() || newYearStartDate.isBlank() || newYearEndDate.isBlank()) {
+                                        Toast.makeText(context, "يرجى تعبئة كافة التواريخ والحقول بشكل صحيح للاستمرار.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        currentStep++
+                                    }
+                                } else {
+                                    currentStep++
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1.5f)
+                        ) {
+                            Text("التالي", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                // COMMIT YEAR ROLLOVER TRANSACT
+                                val oldEnrollmentsToUpdate = mutableListOf<Enrollment>()
+                                val newEnrollmentsToInsert = mutableListOf<Enrollment>()
+
+                                activeGroups.forEach { group ->
+                                    val targetGroupId = groupTargetMap[group.id] ?: 0
+                                    val studs = studentsInGroup[group.id] ?: emptyList()
+                                    
+                                    studs.forEach { student ->
+                                        val choice = studentPromotionChoices[student.id] ?: "promote"
+                                        val oldEnrollment = enrollments.find { it.studentId == student.id && it.groupId == group.id && it.academicYearId == (currentYear?.id ?: 1) }
+                                        
+                                        when (choice) {
+                                            "promote" -> {
+                                                if (targetGroupId > 0) {
+                                                    newEnrollmentsToInsert.add(
+                                                        Enrollment(
+                                                            studentId = student.id,
+                                                            groupId = targetGroupId,
+                                                            academicYearId = 0,
+                                                            status = "active",
+                                                            enrollmentDate = newYearStartDate
+                                                        )
+                                                    )
+                                                }
+                                                oldEnrollment?.let {
+                                                    oldEnrollmentsToUpdate.add(it.copy(status = "active"))
+                                                }
+                                            }
+                                            "repeat" -> {
+                                                newEnrollmentsToInsert.add(
+                                                    Enrollment(
+                                                        studentId = student.id,
+                                                        groupId = group.id,
+                                                        academicYearId = 0,
+                                                        status = "active",
+                                                        enrollmentDate = newYearStartDate
+                                                    )
+                                                )
+                                                oldEnrollment?.let {
+                                                    oldEnrollmentsToUpdate.add(it.copy(status = "active"))
+                                                }
+                                            }
+                                            "graduated" -> {
+                                                oldEnrollment?.let {
+                                                    oldEnrollmentsToUpdate.add(it.copy(status = "graduated"))
+                                                }
+                                            }
+                                            "dropped" -> {
+                                                oldEnrollment?.let {
+                                                    oldEnrollmentsToUpdate.add(it.copy(status = "dropped"))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                val newYear = AcademicYear(
+                                    yearLabel = newYearLabel,
+                                    startDate = newYearStartDate,
+                                    endDate = newYearEndDate,
+                                    isCurrent = true,
+                                    status = "active"
+                                )
+
+                                viewModel.startNewAcademicYear(
+                                    newYear = newYear,
+                                    enrollmentsToInsert = newEnrollmentsToInsert,
+                                    oldYearEnrollmentsToUpdate = oldEnrollmentsToUpdate,
+                                    onSuccess = {
+                                        Toast.makeText(context, "تم بدء العام الدراسي الجديد بنجاح فائق وترحيل الطلاب ومزامنة الجداول تلقائياً!", Toast.LENGTH_LONG).show()
+                                        onDismissRequest()
+                                    },
+                                    onError = { err ->
+                                        Toast.makeText(context, "خطأ في بدء العام الجديد: $err", Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1.5f)
+                        ) {
+                            Text("تأكيد وبدء السنة الدراسية", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
