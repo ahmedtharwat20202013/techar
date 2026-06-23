@@ -798,13 +798,42 @@ db.query(`
         license_key TEXT PRIMARY KEY,
         is_used BOOLEAN DEFAULT FALSE NOT NULL,
         device_id TEXT,
+        device_fingerprint TEXT,
         activation_token TEXT,
+        user_name TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
         activated_at TIMESTAMP,
         last_check TIMESTAMP,
-        expires_at TIMESTAMP
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
+        max_activations INTEGER DEFAULT 1,
+        current_activations INTEGER DEFAULT 0
     );
 `).then(() => {
+    // Add any missing columns to licenses if the table already existed
+    const alterQueries = [
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS device_fingerprint TEXT",
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_name TEXT",
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_activations INTEGER DEFAULT 1",
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS current_activations INTEGER DEFAULT 0"
+    ];
+    return Promise.all(alterQueries.map(q => db.query(q).catch(err => console.log('[Licensing] Alter error (can ignore if already exists):', err.message))));
+}).then(() => {
+    // Ensure validation_logs table is created
+    return db.query(`
+        CREATE TABLE IF NOT EXISTS validation_logs (
+            id SERIAL PRIMARY KEY,
+            license_key TEXT,
+            device_id TEXT,
+            ip_address TEXT NOT NULL,
+            attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            success BOOLEAN NOT NULL,
+            error_reason TEXT
+        );
+    `);
+}).then(() => {
     // Ensure abuse_logs table is created
     return db.query(`
         CREATE TABLE IF NOT EXISTS abuse_logs (
@@ -817,14 +846,7 @@ db.query(`
         );
     `);
 }).then(() => {
-    // Add expires_at column if database already exists without it
-    return db.query(`
-        ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
-    `).catch(err => {
-        console.log('[Licensing] expires_at column already exists or error:', err.message);
-    });
-}).then(() => {
-    console.log('[Licensing] Ensure licenses and abuse_logs tables verified successfully.');
+    console.log('[Licensing] Ensure licenses, validation_logs, and abuse_logs tables verified successfully.');
     // Only seed test data in development
     if (process.env.NODE_ENV === 'development') {
         const testKeyPlain = '026B6-F8F95-44C92-EAB7E';
@@ -1043,6 +1065,10 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
         if (!license) {
             console.log(`[AUDIT] FAILED activation: Key not found in DB (${cleanKey}), ip=${req.ip}`);
             await notifyAbuse(cleanKey, cleanDevice, 'KEY_NOT_FOUND', req.ip);
+            await db.query(
+                'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                [cleanKey, cleanDevice, req.ip, false, 'KEY_NOT_FOUND']
+            );
             return res.status(404).json({
                 success: false,
                 message: 'رمز التفعيل المدخل غير صحيح. يرجى التأكد وإعادة المحاولة.'
@@ -1053,6 +1079,10 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
         if (license.expires_at && new Date(license.expires_at) < new Date()) {
             console.log(`[AUDIT] FAILED activation: Key expired (${cleanKey}), expires_at=${license.expires_at}, ip=${req.ip}`);
             await notifyAbuse(cleanKey, cleanDevice, 'KEY_EXPIRED', req.ip);
+            await db.query(
+                'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                [license.license_key, cleanDevice, req.ip, false, 'KEY_EXPIRED']
+            );
             return res.status(401).json({
                 success: false,
                 message: 'رمز التفعيل منتهي الصلاحية.'
@@ -1061,14 +1091,19 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
         
         // Anti-crack: check if license is used
         if (license.is_used) {
-            if (license.device_id === cleanDevice) {
+            if (license.device_id === cleanDevice || license.device_fingerprint === cleanDevice) {
                 // Same device re-requesting activation. Generate token and allow access
                 const token = makeActivationToken(cleanKey, cleanDevice);
                 await db.query(`
                     UPDATE licenses
-                    SET activation_token = $1, last_check = CURRENT_TIMESTAMP
-                    WHERE license_key = $2
-                `, [token, license.license_key]);
+                    SET activation_token = $1, last_check = CURRENT_TIMESTAMP, user_name = $2
+                    WHERE license_key = $3
+                `, [token, user_name || license.user_name || null, license.license_key]);
+                
+                await db.query(
+                    'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                    [license.license_key, cleanDevice, req.ip, true, null]
+                );
                 
                 console.log(`[AUDIT] SUCCESSFUL activation (reactivation): key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
                 return res.json({
@@ -1079,6 +1114,7 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
                         device_id: cleanDevice,
                         activation_token: token,
                         activated_at: license.activated_at,
+                        expires_at: license.expires_at ? new Date(license.expires_at).getTime() : null,
                         is_reactivation: true
                     }
                 });
@@ -1086,6 +1122,10 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
                 // Different device: strictly reject to avoid sharing codes
                 console.log(`[AUDIT] FAILED activation: Key already in use on another device, key=${cleanKey}, original_device=${license.device_id}, new_device=${cleanDevice}, ip=${req.ip}`);
                 await notifyAbuse(cleanKey, cleanDevice, 'DEVICE_MISMATCH', req.ip);
+                await db.query(
+                    'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                    [license.license_key, cleanDevice, req.ip, false, 'DEVICE_MISMATCH']
+                );
                 return res.status(403).json({
                     success: false,
                     message: 'عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز.'
@@ -1099,12 +1139,20 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
             UPDATE licenses
             SET is_used = TRUE,
                 device_id = $1,
+                device_fingerprint = $1,
                 activation_token = $2,
+                user_name = $3,
                 activated_at = CURRENT_TIMESTAMP,
-                last_check = CURRENT_TIMESTAMP
-            WHERE license_key = $3
+                last_check = CURRENT_TIMESTAMP,
+                current_activations = current_activations + 1
+            WHERE license_key = $4
             RETURNING *
-        `, [cleanDevice, token, license.license_key]);
+        `, [cleanDevice, token, user_name || null, license.license_key]);
+        
+        await db.query(
+            'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+            [license.license_key, cleanDevice, req.ip, true, null]
+        );
         
         console.log(`[AUDIT] SUCCESSFUL activation (new): key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
         return res.json({
@@ -1115,6 +1163,7 @@ app.post('/api/license/activate', licenseLimiter, async (req, res) => {
                 device_id: cleanDevice,
                 activation_token: token,
                 activated_at: updateRes.rows[0].activated_at,
+                expires_at: updateRes.rows[0].expires_at ? new Date(updateRes.rows[0].expires_at).getTime() : null,
                 is_reactivation: false
             }
         });
@@ -1181,6 +1230,10 @@ app.post('/api/license/validate', validateLimiter, async (req, res) => {
         if (!license) {
             console.log(`[AUDIT] FAILED validation: Key not found in DB (${cleanKey}), ip=${req.ip}`);
             await notifyAbuse(cleanKey, cleanDevice, 'KEY_NOT_FOUND_VALIDATION', req.ip);
+            await db.query(
+                'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                [cleanKey, cleanDevice, req.ip, false, 'KEY_NOT_FOUND']
+            );
             return res.status(404).json({ success: false, message: 'الرخصة غير مسجلة بالنظام.' });
         }
         
@@ -1188,6 +1241,10 @@ app.post('/api/license/validate', validateLimiter, async (req, res) => {
         if (license.expires_at && new Date(license.expires_at) < new Date()) {
             console.log(`[AUDIT] FAILED validation: Key expired (${cleanKey}), expires_at=${license.expires_at}, ip=${req.ip}`);
             await notifyAbuse(cleanKey, cleanDevice, 'KEY_EXPIRED_VALIDATION', req.ip);
+            await db.query(
+                'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                [license.license_key, cleanDevice, req.ip, false, 'KEY_EXPIRED']
+            );
             return res.status(401).json({
                 success: false,
                 message: 'رخصتك منتهية الصلاحية.'
@@ -1197,9 +1254,13 @@ app.post('/api/license/validate', validateLimiter, async (req, res) => {
         // Calculate expected backend security match
         const expectedToken = makeActivationToken(cleanKey, cleanDevice);
         
-        if (!license.is_used || license.device_id !== cleanDevice || license.activation_token !== cleanToken || expectedToken !== cleanToken) {
+        if (!license.is_used || (license.device_id !== cleanDevice && license.device_fingerprint !== cleanDevice) || license.activation_token !== cleanToken || expectedToken !== cleanToken) {
             console.log(`[AUDIT] FAILED validation: Identity verification failed. is_used=${license.is_used}, db_device=${license.device_id}, req_device=${cleanDevice}, token_match=${expectedToken === cleanToken}, ip=${req.ip}`);
             await notifyAbuse(cleanKey, cleanDevice, 'IDENTITY_VERIFICATION_FAILED', req.ip);
+            await db.query(
+                'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+                [license.license_key, cleanDevice, req.ip, false, 'IDENTITY_VERIFICATION_FAILED']
+            );
             return res.status(401).json({
                 success: false,
                 message: 'عملية التحقق فشلت. تم كشف محاولة اختراق أو استخدام رخصة غير صالحة.'
@@ -1212,6 +1273,11 @@ app.post('/api/license/validate', validateLimiter, async (req, res) => {
             SET last_check = CURRENT_TIMESTAMP 
             WHERE license_key = $1
         `, [license.license_key]);
+        
+        await db.query(
+            'INSERT INTO validation_logs (license_key, device_id, ip_address, success, error_reason) VALUES ($1, $2, $3, $4, $5)',
+            [license.license_key, cleanDevice, req.ip, true, null]
+        );
         
         console.log(`[AUDIT] SUCCESSFUL validation: key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
         return res.json({

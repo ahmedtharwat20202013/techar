@@ -9,16 +9,18 @@ if (!connectionString) {
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Initialize the database connection pool using environment variables
+// Neon PostgreSQL specific configuration
 const pool = new Pool({
     connectionString,
-    max: 20, // Max concurrent connections in pool
+    max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-    ssl: isProduction ? { rejectUnauthorized: true } : (connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : false)
+    connectionTimeoutMillis: 10000,
+    ssl: (connectionString.includes('neon.tech') || isProduction) ? {
+        rejectUnauthorized: false // Set to false to allow serverless driver certificates comfortably
+    } : (connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : false)
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err) => {
     console.error('Unexpected error on idle database client', err);
 });
 
@@ -46,6 +48,5 @@ module.exports = {
             client.release();
         }
     },
-    
     closePool: () => pool.end()
 };
