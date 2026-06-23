@@ -84,7 +84,7 @@ interface AppDao {
         SELECT DISTINCT s.* FROM students s
         INNER JOIN enrollments e ON s.id = e.studentId
         INNER JOIN academic_years y ON e.academicYearId = y.id
-        WHERE s.isActive = 1 AND y.isCurrent = 1 AND e.status = 'active'
+        WHERE s.isActive = 1 AND s.isDropped = 0 AND y.isCurrent = 1 AND e.status = 'active'
         ORDER BY s.name ASC
     """)
     fun getActiveStudents(): Flow<List<Student>>
@@ -116,7 +116,7 @@ interface AppDao {
         SELECT s.* FROM students s
         INNER JOIN enrollments e ON s.id = e.studentId
         INNER JOIN academic_years y ON e.academicYearId = y.id
-        WHERE s.isActive = 1 AND y.isCurrent = 1 AND e.groupId = :groupId AND e.status = 'active'
+        WHERE s.isActive = 1 AND s.isDropped = 0 AND y.isCurrent = 1 AND e.groupId = :groupId AND e.status = 'active'
         ORDER BY s.name ASC
     """)
     fun getStudentsByGroup(groupId: Int): Flow<List<Student>>
@@ -355,6 +355,61 @@ interface AppDao {
                     paymentTime = paymentTime,
                     amountDue = amount,
                     paidAt = paidAt,
+                    monthVal = bp.month,
+                    yearVal = bp.year,
+                    groupId = gId,
+                    academicYearId = yId
+                )
+            )
+        }
+    }
+
+    @Transaction
+    suspend fun savePartialPaymentTransaction(
+        studentId: Int,
+        month: String,
+        amountPaid: Double,
+        amountDue: Double,
+        isPaid: Boolean,
+        paymentDate: String?,
+        paymentTime: String?,
+        paidAt: Long?,
+        receiptString: String?
+    ) {
+        val existing = getPaymentForStudentAndMonth(studentId, month)
+        val currentYear = getCurrentAcademicYear()
+        val enrollment = currentYear?.let { getEnrollmentForStudentAndYear(studentId, it.id) }
+        val gId = enrollment?.groupId ?: 0
+        val bp = BillingPeriod.parseBillingPeriod(month)
+        val yId = currentYear?.id ?: 1
+        if (existing != null) {
+            updatePayment(
+                existing.copy(
+                    isPaid = isPaid,
+                    amountPaid = amountPaid,
+                    amountDue = amountDue,
+                    paymentDate = paymentDate,
+                    paymentTime = paymentTime,
+                    paidAt = paidAt,
+                    receiptString = receiptString,
+                    monthVal = bp.month,
+                    yearVal = bp.year,
+                    groupId = gId,
+                    academicYearId = yId
+                )
+            )
+        } else {
+            insertPayment(
+                Payment(
+                    studentId = studentId,
+                    month = month,
+                    isPaid = isPaid,
+                    amountPaid = amountPaid,
+                    amountDue = amountDue,
+                    paymentDate = paymentDate,
+                    paymentTime = paymentTime,
+                    paidAt = paidAt,
+                    receiptString = receiptString,
                     monthVal = bp.month,
                     yearVal = bp.year,
                     groupId = gId,

@@ -720,6 +720,245 @@ app.post('/api/demo/initialize', async (req, res) => {
 });
 
 
+// =========================================================================
+// LICENSE SYSTEM INTEGRATION (ONLINE / OFFLINE ANTI-CRACK CONTROL LAYER)
+// =========================================================================
+const crypto = require('crypto');
+const LICENSE_SECRET = process.env.LICENSE_SERVER_SECRET || 'secure_secret_licensekey_signing_backend_2026';
+
+// Ensure database schema matches target
+db.query(`
+    CREATE TABLE IF NOT EXISTS licenses (
+        license_key TEXT PRIMARY KEY,
+        is_used BOOLEAN DEFAULT FALSE NOT NULL,
+        device_id TEXT,
+        activation_token TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        activated_at TIMESTAMP,
+        last_check TIMESTAMP
+    );
+`).then(() => {
+    console.log('[Licensing] Ensure licenses table verified successfully.');
+    // Pre-insert user's requested testing license so they can activate immediately!
+    return db.query(`
+        INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
+        VALUES ('026B6-F8F95-44C92-EAB7E', FALSE, NULL, NULL, CURRENT_TIMESTAMP)
+        ON CONFLICT (license_key) DO NOTHING;
+    `);
+}).then(() => {
+    console.log('[Licensing] Pre-baked test license 026B6-F8F95-44C92-EAB7E verified.');
+}).catch((err) => {
+    console.error('[Licensing] Table/Seed setup failed:', err);
+});
+
+// Helper: HASH algorithm for activation token
+function makeActivationToken(licenseKey, deviceId) {
+    const payload = `${licenseKey}:${deviceId}`;
+    return crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('hex');
+}
+
+// Helper: generate customizable random licensing keys
+function makeRandomLicenseKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const segment = () => {
+        let s = '';
+        for (let i = 0; i < 4; i++) {
+            s += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return s;
+    };
+    return `LIC-${segment()}-${segment()}-${segment()}-${segment()}`;
+}
+
+/**
+ * 1. Endpoint: Generate License Keys (For testing we can generate countable vacant keys)
+ */
+app.post('/api/license/generate', async (req, res) => {
+    try {
+        const count = parseInt(req.body.count) || 5;
+        const generated = [];
+        
+        for (let i = 0; i < count; i++) {
+            const key = makeRandomLicenseKey();
+            await db.query(`
+                INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
+                VALUES ($1, FALSE, NULL, NULL, CURRENT_TIMESTAMP)
+            `, [key]);
+            generated.push(key);
+        }
+        
+        return res.json({
+            success: true,
+            message: `تم توليد عدد ${count} رخصة تفعيل جديدة بنجاح.`,
+            keys: generated
+        });
+    } catch (error) {
+        console.error('Error generating licenses:', error);
+        return res.status(500).json({ success: false, message: 'فشل في توليد رخص تفعيل جديدة برمجياً.' });
+    }
+});
+
+/**
+ * 2. Endpoint: Get all generated licenses list (Useful for verification UI/admin)
+ */
+app.get('/api/license/list', async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT * FROM licenses ORDER BY created_at DESC');
+        return res.json({ success: true, data: rows });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: 'فشل في استرجاع قائمة الرخص.' });
+    }
+});
+
+/**
+ * 3. Endpoint: Activate License Key
+ */
+app.post('/api/license/activate', async (req, res) => {
+    const { license_key, device_id, user_name } = req.body;
+    
+    if (!license_key || !device_id) {
+        return res.status(400).json({
+            success: false,
+            message: 'الحقول المطلوبة (رمز التفعيل، معرف الجهاز) مفقودة.'
+        });
+    }
+    
+    const cleanKey = license_key.trim();
+    const cleanDevice = device_id.trim();
+    
+    try {
+        const checkRes = await db.query('SELECT * FROM licenses WHERE license_key = $1', [cleanKey]);
+        if (checkRes.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'رمز التفعيل المدخل غير صحيح. يرجى التأكد وإعادة المحاولة.'
+            });
+        }
+        
+        const license = checkRes.rows[0];
+        
+        // Anti-crack: check if license is used
+        if (license.is_used) {
+            if (license.device_id === cleanDevice) {
+                // Same device re-requesting activation. Generate token and allow access
+                const token = makeActivationToken(cleanKey, cleanDevice);
+                await db.query(`
+                    UPDATE licenses
+                    SET activation_token = $1, last_check = CURRENT_TIMESTAMP
+                    WHERE license_key = $2
+                `, [token, cleanKey]);
+                
+                return res.json({
+                    success: true,
+                    message: 'تم تفعيل الرخصة بنجاح على هذا الجهاز مرة أخرى.',
+                    data: {
+                        license_key: cleanKey,
+                        device_id: cleanDevice,
+                        activation_token: token,
+                        activated_at: license.activated_at,
+                        is_reactivation: true
+                    }
+                });
+            } else {
+                // Different device: strictly reject to avoid sharing codes
+                return res.status(403).json({
+                    success: false,
+                    message: 'عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز.'
+                });
+            }
+        }
+        
+        // Unused clean license code -> Activate right now
+        const token = makeActivationToken(cleanKey, cleanDevice);
+        const updateRes = await db.query(`
+            UPDATE licenses
+            SET is_used = TRUE,
+                device_id = $1,
+                activation_token = $2,
+                activated_at = CURRENT_TIMESTAMP,
+                last_check = CURRENT_TIMESTAMP
+            WHERE license_key = $3
+            RETURNING *
+        `, [cleanDevice, token, cleanKey]);
+        
+        return res.json({
+            success: true,
+            message: 'تهانينا! تم تفعيل رخصة التطبيق بنجاح لجهازك الخاص.',
+            data: {
+                license_key: cleanKey,
+                device_id: cleanDevice,
+                activation_token: token,
+                activated_at: updateRes.rows[0].activated_at,
+                is_reactivation: false
+            }
+        });
+        
+    } catch (error) {
+        console.error('License Activation error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'فشل في معالجة طلب تفعيل الرخصة. خطأ ببرمجية الخادم.'
+        });
+    }
+});
+
+/**
+ * 4. Endpoint: Regular Online Recheck (Anti-bypass security check)
+ */
+app.post('/api/license/validate', async (req, res) => {
+    const { license_key, device_id, activation_token } = req.body;
+    
+    if (!license_key || !device_id || !activation_token) {
+        return res.status(400).json({
+            success: false,
+            message: 'البيانات الأمنية للرخصة غير مكتملة.'
+        });
+    }
+    
+    const cleanKey = license_key.trim();
+    const cleanDevice = device_id.trim();
+    const cleanToken = activation_token.trim();
+    
+    try {
+        // Validate database record integrity
+        const queryRes = await db.query('SELECT * FROM licenses WHERE license_key = $1', [cleanKey]);
+        if (queryRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'الرخصة غير مسجلة بالنظام.' });
+        }
+        
+        const license = queryRes.rows[0];
+        
+        // Calculate expected backend security match
+        const expectedToken = makeActivationToken(cleanKey, cleanDevice);
+        
+        if (!license.is_used || license.device_id !== cleanDevice || license.activation_token !== cleanToken || expectedToken !== cleanToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'عملية التحقق فشلت. تم كشف محاولة اختراق أو استخدام رخصة غير صالحة.'
+            });
+        }
+        
+        // Success: update last online validation timestamp
+        await db.query(`
+            UPDATE licenses 
+            SET last_check = CURRENT_TIMESTAMP 
+            WHERE license_key = $1
+        `, [cleanKey]);
+        
+        return res.json({
+            success: true,
+            message: 'تم التحقق من رخصة الجهاز وتحديث سجل الأمان.',
+            last_check: new Date()
+        });
+        
+    } catch (error) {
+        console.error('License verification error:', error);
+        return res.status(500).json({ success: false, message: 'خطأ داخلي بالتحقق من الرخصة.' });
+    }
+});
+
+
 // Start server listener
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

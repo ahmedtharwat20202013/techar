@@ -5022,6 +5022,7 @@ fun PaymentsScreen(
 
     var selectedGroupIdx by remember { mutableIntStateOf(0) } // 0 = All Groups
     var selectedStatus by remember { mutableIntStateOf(0) } // 0 = All, 1 = Paid, 2 = Unpaid
+    var showPartialPaymentDialog by remember { mutableStateOf(false) }
 
     val displayedGroupsList = listOf(Group(id = 0, name = "جميع المجموعات", startDate = "", monthlyFee = 0.0, scheduleDays = "")) + groups
 
@@ -5213,6 +5214,28 @@ fun PaymentsScreen(
                 }
             }
 
+            // Record Partial Payment Button
+            Button(
+                onClick = { showPartialPaymentDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "تسجيل مبلغ جزئي",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             // Dropdowns Filters
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -5345,13 +5368,25 @@ fun PaymentsScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    val feeAmount = grp?.monthlyFee ?: 200.0
+                                    val amountDue = if (payment.amountDue > 0.0) payment.amountDue else feeAmount
                                     Text(
-                                        text = "المستحق: ${grp?.monthlyFee ?: 200.0} ج.م",
+                                        text = "المستحق: $amountDue ج.م",
                                         fontSize = 11.sp,
                                         color = TextGray,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    if (!payment.receiptString.isNullOrBlank()) {
+                                        Text(
+                                            text = "📝 ملاحظة: ${payment.receiptString}",
+                                            fontSize = 10.sp,
+                                            color = WarningOrange,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -5364,7 +5399,9 @@ fun PaymentsScreen(
                                     Box(
                                         modifier = Modifier
                                             .background(
-                                                if (payment.isPaid) SuccessGreen.copy(alpha = 0.1f) else DangerRed.copy(alpha = 0.1f),
+                                                if (payment.isPaid) SuccessGreen.copy(alpha = 0.1f) 
+                                                else if (payment.amountPaid > 0.0) WarningOrange.copy(alpha = 0.1f)
+                                                else DangerRed.copy(alpha = 0.1f),
                                                 RoundedCornerShape(6.dp)
                                             )
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -5380,8 +5417,12 @@ fun PaymentsScreen(
                                             }
                                     ) {
                                         Text(
-                                            text = if (payment.isPaid) "تم سداد" else "اضغط للتسديد",
-                                            color = if (payment.isPaid) SuccessGreen else DangerRed,
+                                            text = if (payment.isPaid) "تم سداد" 
+                                                   else if (payment.amountPaid > 0.0) "مسدد جزئياً" 
+                                                   else "اضغط للتسديد",
+                                            color = if (payment.isPaid) SuccessGreen 
+                                                    else if (payment.amountPaid > 0.0) WarningOrange 
+                                                    else DangerRed,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -5394,6 +5435,279 @@ fun PaymentsScreen(
                 item { Spacer(modifier = Modifier.height(84.dp)) }
             }
         }
+    }
+
+    // Record Partial Payment Dialog
+    if (showPartialPaymentDialog) {
+        val context = LocalContext.current
+        var pSelectedGroupIdx by remember { mutableStateOf<Int?>(null) }
+        var pSelectedStudentIdx by remember { mutableStateOf<Int?>(null) }
+        var pAmountPaidStr by remember { mutableStateOf("") }
+        var pAmountDueStr by remember { mutableStateOf("") }
+        var pNotes by remember { mutableStateOf("") }
+
+        val monthOptions = remember {
+            listOf(
+                selectedPeriod,
+                selectedPeriod.previousMonth(),
+                selectedPeriod.previousMonth().previousMonth()
+            )
+        }
+        var pSelectedMonthIdx by remember { mutableIntStateOf(0) }
+
+        val pGroupsList = groups
+        val pSelectedGroup = pSelectedGroupIdx?.let { pGroupsList.getOrNull(it) }
+
+        val pStudentsInGroup = remember(pSelectedGroup, students, enrollments, currentYear) {
+            if (pSelectedGroup == null) emptyList()
+            else {
+                val yId = currentYear?.id ?: 1
+                val groupStudentIds = enrollments
+                    .filter { it.academicYearId == yId && it.groupId == pSelectedGroup.id && it.status == "active" }
+                    .map { it.studentId }
+                    .toSet()
+                students.filter { it.id in groupStudentIds && !it.isDropped && it.isActive && it.deletedAt == null }
+            }
+        }
+
+        val pSelectedStudent = pSelectedStudentIdx?.let { pStudentsInGroup.getOrNull(it) }
+
+        LaunchedEffect(pSelectedGroup) {
+            pSelectedGroup?.let {
+                pAmountDueStr = it.monthlyFee.toString()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showPartialPaymentDialog = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val student = pSelectedStudent
+                        val paidAmt = pAmountPaidStr.toDoubleOrNull()
+                        val dueAmt = pAmountDueStr.toDoubleOrNull()
+
+                        if (student == null) {
+                            Toast.makeText(context, "الرجاء اختيار الطالب أولاً", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (paidAmt == null || paidAmt < 0) {
+                            Toast.makeText(context, "الرجاء كتابة مبلغ مدفوع صحيح", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (dueAmt == null || dueAmt < 0) {
+                            Toast.makeText(context, "الرجاء كتابة القيمة المستحقة بشكل صحيح", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val chosenMonthStr = monthOptions[pSelectedMonthIdx].toLegacyString()
+                        val isFullyPaid = paidAmt >= dueAmt
+
+                        viewModel.addPartialPayment(
+                            studentId = student.id,
+                            month = chosenMonthStr,
+                            amountPaid = paidAmt,
+                            amountDue = dueAmt,
+                            isPaid = isFullyPaid,
+                            notes = pNotes.trim().ifEmpty { null }
+                        )
+
+                        Toast.makeText(context, "تم تسجيل الدفعة الجزئية بنجاح!", Toast.LENGTH_SHORT).show()
+                        showPartialPaymentDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("حفظ الدفعة", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPartialPaymentDialog = false }) {
+                    Text("إلغاء", color = Color.Gray)
+                }
+            },
+            title = {
+                Text(
+                    text = "تسجيل مبلغ جزئي جديد",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = PrimaryDarkGreen,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    var groupExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = pSelectedGroup?.name ?: "اختر المجموعة",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("المجموعة الدراسية") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryGreen) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = PrimaryGreen,
+                                focusedLabelColor = PrimaryDarkGreen,
+                                unfocusedLabelColor = PrimaryDarkGreen
+                            )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { groupExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = groupExpanded,
+                            onDismissRequest = { groupExpanded = false }
+                        ) {
+                            pGroupsList.forEachIndexed { idx, gp ->
+                                DropdownMenuItem(
+                                    text = { Text(gp.name) },
+                                    onClick = {
+                                        pSelectedGroupIdx = idx
+                                        pSelectedStudentIdx = null
+                                        groupExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    var studentExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = pSelectedStudent?.name ?: "اختر الطالب",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("اسم الطالب") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = pSelectedGroupIdx != null,
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryGreen) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = PrimaryGreen,
+                                focusedLabelColor = PrimaryDarkGreen,
+                                unfocusedLabelColor = PrimaryDarkGreen
+                            )
+                        )
+                        if (pSelectedGroupIdx != null) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { studentExpanded = true }
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = studentExpanded,
+                            onDismissRequest = { studentExpanded = false }
+                        ) {
+                            if (pStudentsInGroup.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("لا يوجد طلاب مسجلين بهذه المجموعة") },
+                                    onClick = { studentExpanded = false }
+                                )
+                            } else {
+                                pStudentsInGroup.forEachIndexed { idx, st ->
+                                    DropdownMenuItem(
+                                        text = { Text(st.name) },
+                                        onClick = {
+                                            pSelectedStudentIdx = idx
+                                            studentExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    var monthExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = monthOptions[pSelectedMonthIdx].formatArabicMonth(),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("الشهر المالي") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryGreen) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = PrimaryGreen,
+                                focusedLabelColor = PrimaryDarkGreen,
+                                unfocusedLabelColor = PrimaryDarkGreen
+                            )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { monthExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = monthExpanded,
+                            onDismissRequest = { monthExpanded = false }
+                        ) {
+                            monthOptions.forEachIndexed { idx, p ->
+                                DropdownMenuItem(
+                                    text = { Text(p.formatArabicMonth()) },
+                                    onClick = {
+                                        pSelectedMonthIdx = idx
+                                        monthExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = pAmountDueStr,
+                        onValueChange = { pAmountDueStr = it },
+                        label = { Text("المبلغ المطلوب كامل (ج.م)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryGreen,
+                            unfocusedBorderColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryDarkGreen,
+                            unfocusedLabelColor = PrimaryDarkGreen
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = pAmountPaidStr,
+                        onValueChange = { pAmountPaidStr = it },
+                        label = { Text("المبلغ المدفوع حالياً (ج.م)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryGreen,
+                            unfocusedBorderColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryDarkGreen,
+                            unfocusedLabelColor = PrimaryDarkGreen
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = pNotes,
+                        onValueChange = { pNotes = it },
+                        label = { Text("ملاحظات / تفاصيل الدفعة") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryGreen,
+                            unfocusedBorderColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryDarkGreen,
+                            unfocusedLabelColor = PrimaryDarkGreen
+                        )
+                    )
+                }
+            }
+        )
     }
 }
 

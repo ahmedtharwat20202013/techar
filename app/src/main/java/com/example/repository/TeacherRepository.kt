@@ -188,6 +188,31 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
         forceDatabaseCheckpoint()
     }
 
+    suspend fun savePartialPayment(
+        studentId: Int,
+        month: String,
+        amountPaid: Double,
+        amountDue: Double,
+        isPaid: Boolean,
+        paymentDate: String?,
+        paymentTime: String?,
+        paidAt: Long?,
+        receiptString: String?
+    ) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.savePartialPaymentTransaction(
+            studentId = studentId,
+            month = month,
+            amountPaid = amountPaid,
+            amountDue = amountDue,
+            isPaid = isPaid,
+            paymentDate = paymentDate,
+            paymentTime = paymentTime,
+            paidAt = paidAt,
+            receiptString = receiptString
+        )
+        forceDatabaseCheckpoint()
+    }
+
     // Atomic Attendance Committer
     suspend fun commitAttendance(sessionId: Int, recordsMap: Map<Int, AttendanceStatus>, lateArrivalTimesMap: Map<Int, String?>, timestamp: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         appDao.commitAttendanceTransaction(sessionId, recordsMap, lateArrivalTimesMap, timestamp)

@@ -79,3 +79,18 @@ CREATE TABLE IF NOT EXISTS attendance (
 -- Index for quick stats retrieval over range queries
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
 CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id, date);
+
+-- 4. Licenses Table
+CREATE TABLE IF NOT EXISTS licenses (
+    license_key TEXT PRIMARY KEY,
+    is_used BOOLEAN DEFAULT FALSE NOT NULL,
+    device_id TEXT,
+    activation_token TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    activated_at TIMESTAMP,
+    last_check TIMESTAMP
+);
+
+-- Index for scanning and verifying licenses quickly
+CREATE INDEX IF NOT EXISTS idx_licenses_device ON licenses(device_id);
+

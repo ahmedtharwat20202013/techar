@@ -63,6 +63,15 @@ class MainActivity : ComponentActivity() {
                 var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
                 var hasPin by remember { mutableStateOf(pinStorage.hasPin()) }
 
+                var isActivated by remember { mutableStateOf(com.example.utils.LicenseManager.isAppActivated(this@MainActivity)) }
+
+                LaunchedEffect(isActivated) {
+                    if (isActivated) {
+                        com.example.utils.LicenseManager.tryOnlineRevalidation(this@MainActivity)
+                        isActivated = com.example.utils.LicenseManager.isAppActivated(this@MainActivity)
+                    }
+                }
+
                 androidx.compose.runtime.DisposableEffect(pinStorage) {
                     val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                         when (key) {
@@ -82,6 +91,13 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     when {
+                        // Gate 1: Licensing System (First Launch splash verification tool)
+                        !isActivated -> {
+                            ActivationScreen(
+                                onActivationSuccess = { isActivated = true }
+                            )
+                        }
+
                         // Show PIN screen if enabled and not authenticated
                         pinEnabled && !isAuthenticated -> {
                             PinLockScreen(

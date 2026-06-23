@@ -104,7 +104,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val activeStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val activeStudentIds = enrs.filter { it.academicYearId == yId && it.status == "active" }.map { it.studentId }.toSet()
-        stds.filter { it.id in activeStudentIds && (it.status == "active" || it.status.isEmpty()) && it.isActive && it.deletedAt == null }
+        stds.filter { it.id in activeStudentIds && (it.status == "active" || it.status.isEmpty()) && !it.isDropped && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val graduatedStudents = students.map { stds ->
@@ -148,6 +148,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         var totalDebt = 0.0
 
         stds.forEach { student ->
+            if (student.isDropped) return@forEach
             val enrollment = activeEnrollments[student.id] ?: return@forEach
             val pay = studentPayments[student.id]
             if (pay != null && pay.isPaid) {
@@ -548,7 +549,18 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                         newSessionObj.copy(id = newSessionId.toInt()),
                         group.name
                     )
+                    val alarmCal = com.example.utils.NotificationScheduler.getAlarmCalendar(normalizedDate, time)
+                    val now = java.util.Calendar.getInstance()
+                    if (alarmCal != null && alarmCal.after(now)) {
+                        _notification.emit("تم إضافة الحصة وجدولة التنبيه قبلها بـ 15 دقيقة بنجاح (الساعة ${time})!")
+                    } else {
+                        _notification.emit("تم إضافة الحصة بنجاح! لم يُجدول تنبيه لأن وقت التنبيه (قبلها بـ 15 دقيقة) قد مضى بالفعل.")
+                    }
+                } else {
+                    _notification.emit("تم إضافة الحصة بنجاح!")
                 }
+            } else {
+                _notification.emit("هذه الحصة مسجلة بالفعل في هذا اليوم!")
             }
         }
     }
@@ -760,6 +772,26 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         }
     }
 
+    fun addPartialPayment(studentId: Int, month: String, amountPaid: Double, amountDue: Double, isPaid: Boolean, notes: String?) {
+        viewModelScope.launch {
+            val dbMonth = toYearMonth(month)
+            val paidAt = if (amountPaid > 0.0) System.currentTimeMillis() else null
+            val paymentDate = if (amountPaid > 0.0) DateUtils.formatStandard("yyyy-MM-dd") else null
+            val paymentTime = if (amountPaid > 0.0) DateUtils.formatStandard("HH:mm") else null
+            repository.savePartialPayment(
+                studentId = studentId,
+                month = dbMonth,
+                amountPaid = amountPaid,
+                amountDue = amountDue,
+                isPaid = isPaid,
+                paymentDate = paymentDate,
+                paymentTime = paymentTime,
+                paidAt = paidAt,
+                receiptString = notes
+            )
+        }
+    }
+
     fun updatePayment(payment: Payment) {
         viewModelScope.launch {
             val dbPayment = payment.copy(month = toYearMonth(payment.month))
@@ -967,10 +999,14 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                 
                 repository.updateStudent(
                     student.copy(
+                        status = "dropped",
                         isDropped = true,
                         droppedAt = System.currentTimeMillis()
                     )
                 )
+                if (currentEnrollment != null) {
+                    repository.updateEnrollment(currentEnrollment.copy(status = "dropped"))
+                }
                 
                 _notification.emit("تم تسجيل انقطاع الطالب وحفظ بياناته في الأرشيف")
                 onComplete()
@@ -1142,6 +1178,121 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ غير متوقع أثناء ترحيل الطلاب")
+            }
+        }
+    }
+
+    fun insertDemoData() {
+        viewModelScope.launch {
+            try {
+                val currentYear = repository.getCurrentAcademicYear()
+                val academicYearId = currentYear?.id ?: 1
+                val currentMonthArabic = getCurrentMonthYearArabic()
+                val currentMonthCode = toYearMonth(currentMonthArabic)
+                
+                val groupsToInsert = listOf(
+                    Triple("مجموعة النخبة (علمي)", 400.0, "السبت، الثلاثاء"),
+                    Triple("مجموعة المتفوقين (أدبي)", 350.0, "الأحد، الأربعاء"),
+                    Triple("مجموعة التميز (الصف الثالث)", 500.0, "الإثنين، الخميس")
+                )
+                
+                val todayStr = DateUtils.formatStandard("yyyy-MM-dd")
+                
+                val studentsData = listOf(
+                    listOf("أحمد محمد علي", "محمود حسن السيد", "عمر الخطاب ياسر", "علي عبد الرحمن"),
+                    listOf("سارة أحمد يوسف", "فاطمة الزهراء خالد", "ندى عبد الله", "أروى كمال"),
+                    listOf("يوسف ابراهيم", "كريم محمد مصطفى", "زياد طارق", "مصطفى هاني")
+                )
+
+                for (i in 0 until 3) {
+                    val gData = groupsToInsert[i]
+                    val groupObj = Group(
+                        name = gData.first,
+                        startDate = todayStr,
+                        monthlyFee = gData.second,
+                        scheduleDays = gData.third,
+                        groupType = GroupType.public,
+                        billingMode = BillingMode.monthly,
+                        sessionsPerMonth = 8,
+                        daysOfWeek = DateUtils.parseScheduleToDaysOfWeek(gData.third)
+                    )
+                    
+                    val groupId = repository.insertGroup(groupObj).toInt()
+                    
+                    val sNames = studentsData[i]
+                    val studentIds = mutableListOf<Int>()
+                    for (sName in sNames) {
+                        val sId = repository.addStudentWithProRataBilling(
+                            Student(
+                                name = sName,
+                                parentPhone = "0100000000${studentIds.size + 1}",
+                                joinDate = todayStr,
+                                notes = "طالب تجريبي مضاف تلقائياً لتجربة النظام"
+                            ),
+                            groupId,
+                            currentMonthCode
+                        ).toInt()
+                        studentIds.add(sId)
+                    }
+                    
+                    val calendar = Calendar.getInstance()
+                    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+                    
+                    val dates = mutableListOf<String>()
+                    val times = listOf("04:00 م", "06:00 م", "08:00 م")
+                    
+                    calendar.time = Date()
+                    calendar.add(Calendar.DAY_OF_YEAR, -2)
+                    dates.add(sdf.format(calendar.time))
+                    
+                    calendar.time = Date()
+                    calendar.add(Calendar.DAY_OF_YEAR, -1)
+                    dates.add(sdf.format(calendar.time))
+                    
+                    calendar.time = Date()
+                    dates.add(sdf.format(calendar.time))
+                    
+                    for (sIndex in 0 until 3) {
+                        val sessionDate = dates[sIndex]
+                        val sessionTime = times[sIndex]
+                        val sessionObj = Session(
+                            groupId = groupId,
+                            date = sessionDate,
+                            time = sessionTime,
+                            monthYear = currentMonthArabic,
+                            createdAt = DateUtils.formatStandard("yyyy-MM-dd HH:mm:ss"),
+                            sessionNumber = sIndex + 1
+                        )
+                        val sessionId = repository.insertSession(sessionObj).toInt()
+                        
+                        val attendanceList = mutableListOf<AttendanceRecord>()
+                        for (studentIdx in 0 until 4) {
+                            val isPresent = when(studentIdx) {
+                                0 -> sIndex != 2
+                                1 -> sIndex != 1
+                                2 -> sIndex != 0
+                                3 -> sIndex != 2
+                                else -> true
+                            }
+                            attendanceList.add(
+                                AttendanceRecord(
+                                    sessionId = sessionId,
+                                    studentId = studentIds[studentIdx],
+                                    isPresent = isPresent,
+                                    timestamp = DateUtils.formatStandard("yyyy-MM-dd HH:mm:ss"),
+                                    status = if (isPresent) AttendanceStatus.present else AttendanceStatus.absent,
+                                    attendanceDate = sessionDate,
+                                    academicYearId = academicYearId
+                                )
+                            )
+                        }
+                        repository.insertAttendanceBatch(attendanceList)
+                    }
+                }
+                
+                _notification.emit("تم إضافة 3 مجموعات و 12 طالباً مع سجلات الغياب والرسوم الدراسية بنجاح!")
+            } catch (e: Exception) {
+                _notification.emit("حدث خطأ أثناء إضافة البيانات التجريبية: ${e.message}")
             }
         }
     }
