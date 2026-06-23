@@ -97,25 +97,25 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val academicYears = repository.allAcademicYears.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val currentAcademicYear = repository.currentAcademicYearFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val allStudentsList = students
+    val allStudentsList = students.map { stds ->
+        stds.filter { it.status == "active" && it.isActive && it.deletedAt == null }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     val activeStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val activeStudentIds = enrs.filter { it.academicYearId == yId && it.status == "active" }.map { it.studentId }.toSet()
-        stds.filter { it.id in activeStudentIds && it.isActive && it.deletedAt == null }
+        stds.filter { it.id in activeStudentIds && it.status == "active" && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
     val graduatedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
-        val graduatedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "graduated" || it.status == "Graduated") }.map { it.studentId }.toSet()
-        stds.filter { it.id in graduatedStudentIds }
+        stds.filter { it.status == "graduated" || it.status == "Graduated" }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val droppedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
-        val droppedStudentIds = enrs.filter { it.academicYearId == yId && (it.status == "dropped" || it.status == "Dropped" || it.status == "graduated") }.map { it.studentId }.toSet()
-        stds.filter { it.id in droppedStudentIds || it.isDropped }
+        stds.filter { it.status == "dropped" || it.status == "Dropped" || it.status == "withdrawn" || it.isDropped }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val paymentStats = combine(
@@ -760,6 +760,8 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
 
     // --- STUDENT PROFILE ANALYTICS & COMPUTED STATS ---
 
+    fun getStudentEnrollments(studentId: Int): Flow<List<Enrollment>> = repository.getEnrollmentsForStudentFlow(studentId)
+
     fun getStudentProfileStats(studentId: Int, groupId: Int): Flow<StudentProfileStats> {
         val studentFlow = repository.getStudentByIdFlow(studentId)
         val groupFlow = repository.getGroupByIdFlow(groupId)
@@ -833,6 +835,34 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         }
     }
 
+    fun promoteGroup(sourceGroupId: Int, targetGroupId: Int, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                val currentYear = currentAcademicYear.value
+                val academicYearId = currentYear?.id ?: 1
+                
+                val activeEnrolls = repository.allEnrollments.first().filter { 
+                    it.groupId == sourceGroupId && it.academicYearId == academicYearId && (it.status == "active" || it.status == "transferred") 
+                }
+                
+                activeEnrolls.forEach { enr ->
+                    repository.updateEnrollment(enr.copy(status = "transferred"))
+                    repository.insertEnrollment(
+                        com.example.data.Enrollment(
+                            studentId = enr.studentId,
+                            groupId = targetGroupId,
+                            academicYearId = academicYearId,
+                            status = "active",
+                            enrollmentDate = com.example.data.DateUtils.formatStandard("yyyy-MM-dd")
+                        )
+                    )
+                }
+                onSuccess()
+            } catch (e: Exception) {
+            }
+        }
+    }
+
     fun startNewAcademicYear(
         newYear: AcademicYear,
         enrollmentsToInsert: List<Enrollment>,
@@ -843,6 +873,19 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         viewModelScope.launch {
             try {
                 repository.startNewAcademicYear(newYear, enrollmentsToInsert, oldYearEnrollmentsToUpdate)
+                
+                // Also update student statuses based on what was chosen
+                val studentsList = students.first()
+                for (enrollment in oldYearEnrollmentsToUpdate) {
+                    val student = studentsList.find { it.id == enrollment.studentId }
+                    if (student != null) {
+                        try {
+                            repository.updateStudent(student.copy(status = enrollment.status))
+                        } catch (e: Exception) {
+                            // Ignored
+                        }
+                    }
+                }
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ غير متوقع")

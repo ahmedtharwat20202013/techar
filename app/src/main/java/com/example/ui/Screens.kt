@@ -1681,6 +1681,7 @@ fun GroupDetailScreen(
     var showAddSessionDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteGroupPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditGroupDialog by rememberSaveable { mutableStateOf(false) }
+    var showPromoteGroupDialog by rememberSaveable { mutableStateOf(false) }
     var selectedStudentToEdit by remember { mutableStateOf<Student?>(null) }
     var selectedStudentToDelete by remember { mutableStateOf<Student?>(null) }
 
@@ -1770,6 +1771,19 @@ fun GroupDetailScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("حذف المجموعة", color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { showPromoteGroupDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.TrendingUp, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("ترحيل / نقل طلاب المجموعة", color = AccentGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -2234,6 +2248,73 @@ fun GroupDetailScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteGroupPrompt = false }) {
                     Text("إلغاء")
+                }
+            }
+        )
+    }
+
+    if (showPromoteGroupDialog && group != null) {
+        var selectedTargetGroupId by remember { mutableStateOf(groups.firstOrNull { it.id != groupId }?.id) }
+        var dropdownExpanded by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showPromoteGroupDialog = false },
+            containerColor = Color.White,
+            title = { Text("ترحيل طلاب المجموعة", color = PrimaryDarkGreen, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("سيتم ترحيل جميع الطلاب النشطين من هذه المجموعة إلى المجموعة الجديدة. سيحفظ أرشيف المجموعة الحالية للطلاب.", fontSize = 13.sp, color = TextGray)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text("المجموعة الوجهة:", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { dropdownExpanded = true },
+                            colors = CardDefaults.cardColors(containerColor = SoftBgGreen)
+                        ) {
+                            Text(
+                                text = groups.find { it.id == selectedTargetGroupId }?.name ?: "اختر مجموعة",
+                                modifier = Modifier.padding(12.dp),
+                                color = PrimaryDarkGreen
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = dropdownExpanded,
+                            onDismissRequest = { dropdownExpanded = false }
+                        ) {
+                            groups.filter { it.id != groupId }.forEach { tgtGrp ->
+                                DropdownMenuItem(
+                                    text = { Text(tgtGrp.name, color = PrimaryDarkGreen) },
+                                    onClick = {
+                                        selectedTargetGroupId = tgtGrp.id
+                                        dropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedTargetGroupId?.let { tgtId ->
+                            viewModel.promoteGroup(groupId, tgtId) {
+                                android.widget.Toast.makeText(context, "تم ترحيل الطلاب بنجاح", android.widget.Toast.LENGTH_SHORT).show()
+                                showPromoteGroupDialog = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                    enabled = selectedTargetGroupId != null
+                ) {
+                    Text("تأكيد الترحيل", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPromoteGroupDialog = false }) {
+                    Text("إلغاء", color = TextGray)
                 }
             }
         )
@@ -3821,7 +3902,11 @@ fun StudentProfileScreen(
 
     val groups by viewModel.groups.collectAsState()
     val group = remember(groups, groupId) { groups.find { it.id == groupId } }
-    val isPerSessionPrivate = group?.groupType == GroupType.private && group?.billingMode == BillingMode.per_session
+    val isPerSessionPrivate = group?.groupType == com.example.data.GroupType.private && group?.billingMode == com.example.data.BillingMode.per_session
+
+    var pdfGroupId by rememberSaveable { mutableIntStateOf(groupId) }
+    val pdfGroupSessions by viewModel.getSessionsByGroup(pdfGroupId).collectAsState(initial = emptyList())
+    val pdfGroup = remember(groups, pdfGroupId) { groups.find { it.id == pdfGroupId } }
 
     // Dialog sheets
     var showPaymentDialog by rememberSaveable { mutableStateOf(false) }
@@ -3829,6 +3914,17 @@ fun StudentProfileScreen(
     var showNotesDialog by rememberSaveable { mutableStateOf(false) }
     var showDeletePrompt by rememberSaveable { mutableStateOf(false) }
     var showEditStudentDialog by rememberSaveable { mutableStateOf(false) }
+
+    var expandedPdfEnrollment by remember { mutableStateOf(false) }
+    var selectedPdfEnrollment by remember { mutableStateOf<com.example.data.Enrollment?>(null) }
+    val studentEnrollments by viewModel.getStudentEnrollments(studentId).collectAsState(initial = emptyList())
+    val academicYears by viewModel.academicYears.collectAsState(initial = emptyList())
+
+    LaunchedEffect(studentEnrollments, groupId) {
+        if (selectedPdfEnrollment == null && studentEnrollments.isNotEmpty()) {
+            selectedPdfEnrollment = studentEnrollments.find { it.groupId == groupId } ?: studentEnrollments.lastOrNull()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -4056,7 +4152,8 @@ fun StudentProfileScreen(
                             modifier = Modifier.weight(1f).height(44.dp),
                             onClick = { showPaymentDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = student?.status == "active" && student.isDropped == false
                         ) {
                             Text("تسجيل دفع", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
@@ -4065,9 +4162,48 @@ fun StudentProfileScreen(
                             modifier = Modifier.weight(1f).height(44.dp),
                             onClick = { showExamDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = student?.status == "active" && student.isDropped == false
                         ) {
                             Text("إضافة درجة اختبار", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // PDF Context Selection
+                    if (studentEnrollments.size > 1) {
+                        Text("اختر بيانات المرحلة/السنة لملف الـ PDF:", fontSize = 12.sp, color = TextGray)
+                        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { expandedPdfEnrollment = true },
+                                colors = CardDefaults.cardColors(containerColor = SoftBgGreen),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val selGroup = groups.find { it.id == pdfGroupId }
+                                    Text(selGroup?.name ?: "مجموعة غير معروفة", color = PrimaryDarkGreen, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryDarkGreen)
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expandedPdfEnrollment,
+                                onDismissRequest = { expandedPdfEnrollment = false }
+                            ) {
+                                studentEnrollments.forEach { enr ->
+                                    val g = groups.find { it.id == enr.groupId }
+                                    val year = academicYears.find { it.id == enr.academicYearId }
+                                    DropdownMenuItem(
+                                        text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
+                                        onClick = {
+                                            pdfGroupId = enr.groupId
+                                            expandedPdfEnrollment = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -4083,11 +4219,11 @@ fun StudentProfileScreen(
                                     exportStudentProfilePdf(
                                         context = context,
                                         student = stud,
-                                        group = group,
-                                        payments = paymentList,
+                                        group = pdfGroup,
+                                        payments = paymentList, // Optional: Filter if we have related date
                                         exams = examScores,
                                         attendances = attendances,
-                                        sessions = groupSessions,
+                                        sessions = pdfGroupSessions, // Passed filtered sessions!
                                         viewImmediately = true
                                     )
                                 }
@@ -4105,11 +4241,11 @@ fun StudentProfileScreen(
                                     exportStudentProfilePdf(
                                         context = context,
                                         student = stud,
-                                        group = group,
+                                        group = pdfGroup,
                                         payments = paymentList,
                                         exams = examScores,
                                         attendances = attendances,
-                                        sessions = groupSessions,
+                                        sessions = pdfGroupSessions,
                                         viewImmediately = false
                                     )
                                 }
@@ -6350,7 +6486,11 @@ fun StartNewAcademicYearDialog(
                                                                                 color = Color.Black
                                                                             )
                                                                             val displayChoiceText = when (selectedChoice) {
-                                                                                "promote" -> "انتقال تلقائي"
+                                                                                "promote" -> {
+                                                                                    val targetId = studentTargetGroups[student.id] ?: groupTargetMap[group.id] ?: 0
+                                                                                    val groupName = groups.find { it.id == targetId }?.name ?: "غير محدد"
+                                                                                    "ترحيل إلى $groupName"
+                                                                                }
                                                                                 "repeat" -> "إعادة تكرار"
                                                                                 "graduated" -> "خريج"
                                                                                 "dropped" -> "مغادرة"
@@ -6382,6 +6522,8 @@ fun StartNewAcademicYearDialog(
                                                                             )
                                                                             choices.forEach { (key, label) ->
                                                                                 val isSelected = selectedChoice == key
+                                                                                var showPromoteDropdown by remember { mutableStateOf(false) }
+
                                                                                 Box(
                                                                                     modifier = Modifier
                                                                                         .weight(1f)
@@ -6408,7 +6550,12 @@ fun StartNewAcademicYearDialog(
                                                                                             } else Color.Transparent,
                                                                                             RoundedCornerShape(6.dp)
                                                                                         )
-                                                                                        .clickable { studentPromotionChoices[student.id] = key }
+                                                                                        .clickable { 
+                                                                                            studentPromotionChoices[student.id] = key 
+                                                                                            if (key == "promote") {
+                                                                                                showPromoteDropdown = true
+                                                                                            }
+                                                                                        }
                                                                                         .padding(vertical = 6.dp),
                                                                                     contentAlignment = Alignment.Center
                                                                                 ) {
@@ -6425,6 +6572,23 @@ fun StartNewAcademicYearDialog(
                                                                                             }
                                                                                         } else Color.Gray
                                                                                     )
+                                                                                    
+                                                                                    if (key == "promote") {
+                                                                                        DropdownMenu(
+                                                                                            expanded = showPromoteDropdown,
+                                                                                            onDismissRequest = { showPromoteDropdown = false }
+                                                                                        ) {
+                                                                                            groups.forEach { candidate ->
+                                                                                                DropdownMenuItem(
+                                                                                                    text = { Text("ترحيل إلى: ${candidate.name}", fontSize = 12.sp) },
+                                                                                                    onClick = {
+                                                                                                        studentTargetGroups[student.id] = candidate.id
+                                                                                                        showPromoteDropdown = false
+                                                                                                    }
+                                                                                                )
+                                                                                            }
+                                                                                        }
+                                                                                    }
                                                                                 }
                                                                             }
                                                                         }

@@ -48,7 +48,8 @@ data class Student(
     val isActive: Boolean = true,  // Soft delete flag
     val deletedAt: String? = null,  // تاريخ الحذف (اختياري للأرشفة)
     val isDropped: Boolean = false,
-    val droppedAt: Long? = null
+    val droppedAt: Long? = null,
+    val status: String = "active"
 )
 
 @Entity(
