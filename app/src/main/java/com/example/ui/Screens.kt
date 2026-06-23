@@ -3909,6 +3909,11 @@ fun StudentProfileScreen(
     val pdfGroupSessions by viewModel.getSessionsByGroup(pdfGroupId).collectAsState(initial = emptyList())
     val pdfGroup = remember(groups, pdfGroupId) { groups.find { it.id == pdfGroupId } }
 
+    val pdfGroupPayments = remember(paymentList, pdfGroupId) {
+        paymentList.filter { it.groupId == pdfGroupId || it.groupId == 0 }
+    }
+    val pdfGroupExams by viewModel.getExamScoresForStudentAndGroup(studentId, pdfGroupId).collectAsState(initial = emptyList())
+
     // Dialog sheets
     var showPaymentDialog by rememberSaveable { mutableStateOf(false) }
     var showExamDialog by rememberSaveable { mutableStateOf(false) }
@@ -3922,8 +3927,12 @@ fun StudentProfileScreen(
     val academicYears by viewModel.academicYears.collectAsState(initial = emptyList())
 
     LaunchedEffect(studentEnrollments, groupId) {
-        if (selectedPdfEnrollment == null && studentEnrollments.isNotEmpty()) {
-            selectedPdfEnrollment = studentEnrollments.find { it.groupId == groupId } ?: studentEnrollments.lastOrNull()
+        if (studentEnrollments.isNotEmpty()) {
+            val matched = studentEnrollments.find { it.groupId == groupId } ?: studentEnrollments.lastOrNull()
+            selectedPdfEnrollment = matched
+            if (matched != null && (pdfGroupId == 0 || pdfGroupId !in studentEnrollments.map { it.groupId })) {
+                pdfGroupId = matched.groupId
+            }
         }
     }
 
@@ -4237,8 +4246,8 @@ fun StudentProfileScreen(
                                                 context = context,
                                                 student = stud,
                                                 group = pdfGroup,
-                                                payments = paymentList,
-                                                exams = examScores,
+                                                payments = pdfGroupPayments,
+                                                exams = pdfGroupExams,
                                                 attendances = attendances,
                                                 sessions = pdfGroupSessions,
                                                 viewImmediately = true
@@ -4259,8 +4268,8 @@ fun StudentProfileScreen(
                                                 context = context,
                                                 student = stud,
                                                 group = pdfGroup,
-                                                payments = paymentList,
-                                                exams = examScores,
+                                                payments = pdfGroupPayments,
+                                                exams = pdfGroupExams,
                                                 attendances = attendances,
                                                 sessions = pdfGroupSessions,
                                                 viewImmediately = false
@@ -8735,22 +8744,6 @@ fun StudentMigrationRow(
                 label = { Text("يتخرج 🎓", fontSize = 11.sp) },
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Color(0xFFE8F5E9)
-                )
-            )
-            androidx.compose.material3.FilterChip(
-                selected = selectedChoice == "withdrawn",
-                onClick = { onChoiceChange("withdrawn") },
-                label = { Text("ينسحب ❌", fontSize = 11.sp) },
-                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFFFF3E0)
-                )
-            )
-            androidx.compose.material3.FilterChip(
-                selected = selectedChoice == "dropped",
-                onClick = { onChoiceChange("dropped") },
-                label = { Text("انقطع 🚫", fontSize = 11.sp) },
-                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFFFEBEE)
                 )
             )
         }

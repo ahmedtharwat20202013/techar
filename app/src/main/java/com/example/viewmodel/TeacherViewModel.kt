@@ -246,6 +246,10 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         return repository.getExamScoresForStudent(studentId)
     }
 
+    fun getExamScoresForStudentAndGroup(studentId: Int, groupId: Int): Flow<List<ExamScore>> {
+        return repository.getExamScoresForStudentAndGroup(studentId, groupId)
+    }
+
     // Sessions today logic
     fun getSessionsForToday(date: String): Flow<List<Session>> {
         return repository.getSessionsForDate(date)

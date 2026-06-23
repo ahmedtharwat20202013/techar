@@ -49,7 +49,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
 
     private fun forceDatabaseCheckpoint() {
         try {
-            database.openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(FULL)")
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { }
         } catch (e: Exception) {
             android.util.Log.e("TeacherRepository", "Error running full DB checkpoint", e)
         }
@@ -126,6 +126,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
     // Exams
     val allExamScores: Flow<List<ExamScore>> = appDao.getAllExamScores()
     fun getExamScoresForStudent(studentId: Int): Flow<List<ExamScore>> = appDao.getExamScoresForStudent(studentId)
+    fun getExamScoresForStudentAndGroup(studentId: Int, groupId: Int): Flow<List<ExamScore>> = appDao.getExamScoresForStudentAndGroup(studentId, groupId)
     suspend fun insertExamScore(score: ExamScore): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val id = appDao.insertExamScore(score)
         forceDatabaseCheckpoint()
@@ -214,7 +215,7 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
             createdAtStr = createdAtStr
         )
         try {
-            database.openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(FULL)") // Ensure SQLite flushes pages / commits fully to disk
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { } // Ensure SQLite flushes pages / commits fully to disk
         } catch (e: Exception) {
             android.util.Log.e("TeacherRepository", "Error running checkpoint", e)
         }

@@ -605,6 +605,15 @@ interface AppDao {
     """)
     fun getExamScoresForStudent(studentId: Int): Flow<List<ExamScore>>
 
+    @Query("""
+        SELECT g.id AS id, g.studentId AS studentId, e.name AS examName, g.score AS score, e.totalScore AS maxScore, e.date AS date
+        FROM grades g
+        INNER JOIN new_exams e ON g.examId = e.id
+        WHERE g.studentId = :studentId AND e.groupId = :groupId
+        ORDER BY e.date DESC
+    """)
+    fun getExamScoresForStudentAndGroup(studentId: Int, groupId: Int): Flow<List<ExamScore>>
+
     @Transaction
     suspend fun insertExamScore(score: ExamScore): Long {
         val student = getStudentById(score.studentId) ?: return 0L
