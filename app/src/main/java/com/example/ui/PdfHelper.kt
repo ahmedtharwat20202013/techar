@@ -136,7 +136,8 @@ object PdfHelper {
         exams: List<ExamScore>,
         attendances: List<AttendanceRecord>,
         sessions: List<Session>,
-        viewImmediately: Boolean
+        viewImmediately: Boolean,
+        enrollmentDate: String? = null
     ) {
         val progressDialog = android.app.ProgressDialog(context).apply {
             setMessage("جاري إنشاء تقرير PDF للرصد والمتابعة...")
@@ -159,7 +160,8 @@ object PdfHelper {
                     
                     // --- DATA CALCULATIONS ---
                     val defaultDate = DateUtils.formatStandard("yyyy-MM-dd")
-                    val normJoinDate = student.joinDate.isNotBlank().let { if (it) student.joinDate.replace("-", "/") else defaultDate }
+                    val effectiveJoinDate = if (!enrollmentDate.isNullOrBlank()) enrollmentDate else student.joinDate
+                    val normJoinDate = effectiveJoinDate.isNotBlank().let { if (it) effectiveJoinDate.replace("-", "/") else defaultDate }
                     
                     // Filter sessions starting on or after Student joinDate
                     val activeSessions = sessions.filter { it.date.replace("-", "/") >= normJoinDate }

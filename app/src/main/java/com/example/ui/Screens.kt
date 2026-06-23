@@ -3895,24 +3895,28 @@ fun StudentProfileScreen(
     val context = LocalContext.current
     val studentsList by viewModel.students.collectAsState()
     val student = remember(studentsList, studentId) { studentsList.find { it.id == studentId } }
-    val profileStats by viewModel.getStudentProfileStats(studentId, groupId).collectAsState(initial = StudentProfileStats())
+    
+    var pdfGroupId by rememberSaveable { mutableIntStateOf(groupId) }
+    val studentEnrollments by viewModel.getStudentEnrollments(studentId).collectAsState(initial = emptyList())
+    val academicYears by viewModel.academicYears.collectAsState(initial = emptyList())
+
+    val profileStats by viewModel.getStudentProfileStats(studentId, pdfGroupId).collectAsState(initial = StudentProfileStats())
     val paymentList by viewModel.getPaymentsForStudent(studentId).collectAsState(initial = emptyList())
-    val examScores by viewModel.getExamScoresForStudent(studentId).collectAsState(initial = emptyList())
+    val examScores by viewModel.getExamScoresForStudentAndGroup(studentId, pdfGroupId).collectAsState(initial = emptyList())
     val attendances by viewModel.getAttendanceForStudent(studentId).collectAsState(initial = emptyList())
-    val groupSessions by viewModel.getSessionsByGroup(groupId).collectAsState(initial = emptyList())
+    val groupSessions by viewModel.getSessionsByGroup(pdfGroupId).collectAsState(initial = emptyList())
 
     val groups by viewModel.groups.collectAsState()
-    val group = remember(groups, groupId) { groups.find { it.id == groupId } }
+    val group = remember(groups, pdfGroupId) { groups.find { it.id == pdfGroupId } }
     val isPerSessionPrivate = group?.groupType == com.example.data.GroupType.private && group?.billingMode == com.example.data.BillingMode.per_session
 
-    var pdfGroupId by rememberSaveable { mutableIntStateOf(groupId) }
-    val pdfGroupSessions by viewModel.getSessionsByGroup(pdfGroupId).collectAsState(initial = emptyList())
-    val pdfGroup = remember(groups, pdfGroupId) { groups.find { it.id == pdfGroupId } }
+    val pdfGroupSessions = groupSessions
+    val pdfGroup = group
 
     val pdfGroupPayments = remember(paymentList, pdfGroupId) {
         paymentList.filter { it.groupId == pdfGroupId || it.groupId == 0 }
     }
-    val pdfGroupExams by viewModel.getExamScoresForStudentAndGroup(studentId, pdfGroupId).collectAsState(initial = emptyList())
+    val pdfGroupExams = examScores
 
     // Dialog sheets
     var showPaymentDialog by rememberSaveable { mutableStateOf(false) }
@@ -3923,8 +3927,6 @@ fun StudentProfileScreen(
 
     var expandedPdfEnrollment by remember { mutableStateOf(false) }
     var selectedPdfEnrollment by remember { mutableStateOf<com.example.data.Enrollment?>(null) }
-    val studentEnrollments by viewModel.getStudentEnrollments(studentId).collectAsState(initial = emptyList())
-    val academicYears by viewModel.academicYears.collectAsState(initial = emptyList())
 
     LaunchedEffect(studentEnrollments, groupId) {
         if (studentEnrollments.isNotEmpty()) {
@@ -4196,11 +4198,13 @@ fun StudentProfileScreen(
                                 color = PrimaryDarkGreen
                             )
                             
-                            if (studentEnrollments.size > 1) {
-                                Text("اختر بيانات المرحلة/السنة لملف الـ PDF:", fontSize = 12.sp, color = TextGray)
+                            if (studentEnrollments.isNotEmpty()) {
+                                Text("بيانات المرحلة/السنة لملف الـ PDF والتقرير التفاعلي:", fontSize = 12.sp, color = TextGray)
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     Card(
-                                        modifier = Modifier.fillMaxWidth().clickable { expandedPdfEnrollment = true },
+                                        modifier = Modifier.fillMaxWidth().then(
+                                            if (studentEnrollments.size > 1) Modifier.clickable { expandedPdfEnrollment = true } else Modifier
+                                        ),
                                         colors = CardDefaults.cardColors(containerColor = Color.White),
                                         border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
                                         shape = RoundedCornerShape(10.dp)
@@ -4210,25 +4214,36 @@ fun StudentProfileScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val selGroup = groups.find { it.id == pdfGroupId }
-                                            Text(selGroup?.name ?: "مجموعة غير معروفة", color = PrimaryDarkGreen, fontSize = 14.sp)
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryDarkGreen)
+                                            val selEnrollment = studentEnrollments.find { it.groupId == pdfGroupId }
+                                            val selYear = academicYears.find { it.id == (selEnrollment?.academicYearId ?: 0) }
+                                            val labelText = if (selYear != null) {
+                                                "${selGroup?.name ?: "مجموعة غير معروفة"} (${selYear.yearLabel})"
+                                            } else {
+                                                selGroup?.name ?: "مجموعة غير معروفة"
+                                            }
+                                            Text(labelText, color = PrimaryDarkGreen, fontSize = 14.sp)
+                                            if (studentEnrollments.size > 1) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryDarkGreen)
+                                            }
                                         }
                                     }
-                                    DropdownMenu(
-                                        expanded = expandedPdfEnrollment,
-                                        onDismissRequest = { expandedPdfEnrollment = false }
-                                    ) {
-                                        studentEnrollments.forEach { enr ->
-                                            val g = groups.find { it.id == enr.groupId }
-                                            val year = academicYears.find { it.id == enr.academicYearId }
-                                            DropdownMenuItem(
-                                                text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
-                                                onClick = {
-                                                    pdfGroupId = enr.groupId
-                                                    expandedPdfEnrollment = false
-                                                }
-                                            )
+                                    if (studentEnrollments.size > 1) {
+                                        DropdownMenu(
+                                            expanded = expandedPdfEnrollment,
+                                            onDismissRequest = { expandedPdfEnrollment = false }
+                                        ) {
+                                            studentEnrollments.forEach { enr ->
+                                                val g = groups.find { it.id == enr.groupId }
+                                                val year = academicYears.find { it.id == enr.academicYearId }
+                                                DropdownMenuItem(
+                                                    text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
+                                                    onClick = {
+                                                        pdfGroupId = enr.groupId
+                                                        expandedPdfEnrollment = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -4250,7 +4265,8 @@ fun StudentProfileScreen(
                                                 exams = pdfGroupExams,
                                                 attendances = attendances,
                                                 sessions = pdfGroupSessions,
-                                                viewImmediately = true
+                                                viewImmediately = true,
+                                                enrollmentDate = studentEnrollments.find { it.groupId == pdfGroupId }?.enrollmentDate
                                             )
                                         }
                                     },
@@ -4272,7 +4288,8 @@ fun StudentProfileScreen(
                                                 exams = pdfGroupExams,
                                                 attendances = attendances,
                                                 sessions = pdfGroupSessions,
-                                                viewImmediately = false
+                                                viewImmediately = false,
+                                                enrollmentDate = studentEnrollments.find { it.groupId == pdfGroupId }?.enrollmentDate
                                             )
                                         }
                                     },
@@ -7073,7 +7090,8 @@ fun exportStudentProfilePdf(
     exams: List<ExamScore>,
     attendances: List<AttendanceRecord>,
     sessions: List<Session>,
-    viewImmediately: Boolean = false
+    viewImmediately: Boolean = false,
+    enrollmentDate: String? = null
 ) {
     PdfHelper.generateAndExportStudentProfile(
         context,
@@ -7083,7 +7101,8 @@ fun exportStudentProfilePdf(
         exams,
         attendances,
         sessions,
-        viewImmediately
+        viewImmediately,
+        enrollmentDate
     )
 }
 
