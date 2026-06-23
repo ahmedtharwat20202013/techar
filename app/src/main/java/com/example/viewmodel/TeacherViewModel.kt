@@ -98,24 +98,25 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val currentAcademicYear = repository.currentAcademicYearFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val allStudentsList = students.map { stds ->
-        stds.filter { it.status == "active" && it.isActive && it.deletedAt == null }
+        stds.filter { it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     val activeStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val activeStudentIds = enrs.filter { it.academicYearId == yId && it.status == "active" }.map { it.studentId }.toSet()
-        stds.filter { it.id in activeStudentIds && it.status == "active" && it.isActive && it.deletedAt == null }
+        stds.filter { it.id in activeStudentIds && (it.status == "active" || it.status.isEmpty()) && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-
-    val graduatedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
-        val yId = currentYear?.id ?: 1
-        stds.filter { it.status == "graduated" || it.status == "Graduated" }
+    val graduatedStudents = students.map { stds ->
+        stds.filter { (it.status == "graduated" || it.status == "Graduated") && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val droppedStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
-        val yId = currentYear?.id ?: 1
-        stds.filter { it.status == "dropped" || it.status == "Dropped" || it.status == "withdrawn" || it.isDropped }
+    val withdrawnStudents = students.map { stds ->
+        stds.filter { it.status == "withdrawn" && it.isActive && it.deletedAt == null }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val droppedStudents = students.map { stds ->
+        stds.filter { (it.status == "dropped" || it.status == "Dropped" || it.isDropped) && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val paymentStats = combine(

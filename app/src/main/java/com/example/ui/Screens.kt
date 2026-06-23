@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -6392,70 +6393,7 @@ fun StartNewAcademicYearDialog(
                                                         }
                                                     }
 
-                                                    // Default target dropdown
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text("الوجهة الافتراضية:", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
-                                                        
-                                                        Box {
-                                                            val targetText = when (currentTargetId) {
-                                                                0 -> "🎓 تخرج تلقائي"
-                                                                -1 -> "❌ انقطاع تلقائي"
-                                                                else -> groups.find { it.id == currentTargetId }?.name ?: "🎓 تخرج تلقائي"
-                                                            }
-                                                            Surface(
-                                                                onClick = { showGroupDropdown = true },
-                                                                border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.3f)),
-                                                                shape = RoundedCornerShape(8.dp),
-                                                                color = SoftBgGreen,
-                                                                modifier = Modifier.widthIn(min = 160.dp)
-                                                            ) {
-                                                                Row(
-                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                                    verticalAlignment = Alignment.CenterVertically
-                                                                ) {
-                                                                    Text(targetText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
-                                                                    Icon(Icons.Default.ExpandMore, contentDescription = null, tint = PrimaryDarkGreen, modifier = Modifier.size(16.dp))
-                                                                }
-                                                            }
-
-                                                            DropdownMenu(
-                                                                expanded = showGroupDropdown,
-                                                                onDismissRequest = { showGroupDropdown = false }
-                                                            ) {
-                                                                DropdownMenuItem(
-                                                                    text = { Text("🎓 تخرج تلقائي لجميع الطلاب", fontSize = 12.sp) },
-                                                                    onClick = {
-                                                                        groupTargetMap[group.id] = 0
-                                                                        showGroupDropdown = false
-                                                                    }
-                                                                )
-                                                                DropdownMenuItem(
-                                                                    text = { Text("❌ انقطاع تلقائي لجميع الطلاب", fontSize = 12.sp) },
-                                                                    onClick = {
-                                                                        groupTargetMap[group.id] = -1
-                                                                        showGroupDropdown = false
-                                                                    }
-                                                                )
-                                                                HorizontalDivider()
-                                                                groups.forEach { candidate ->
-                                                                    if (candidate.id != group.id) {
-                                                                        DropdownMenuItem(
-                                                                            text = { Text("🔄 ترحيل إلى: ${candidate.name}", fontSize = 12.sp) },
-                                                                            onClick = {
-                                                                                groupTargetMap[group.id] = candidate.id
-                                                                                showGroupDropdown = false
-                                                                            }
-                                                                        )
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                                                    // Removed Default target dropdown per user request
 
                                                     // Students customizable list
                                                     if (isExpanded) {
@@ -6487,7 +6425,7 @@ fun StartNewAcademicYearDialog(
                                                                             )
                                                                             val displayChoiceText = when (selectedChoice) {
                                                                                 "promote" -> {
-                                                                                    val targetId = studentTargetGroups[student.id] ?: groupTargetMap[group.id] ?: 0
+                                                                                    val targetId = studentTargetGroups[student.id] ?: 0
                                                                                     val groupName = groups.find { it.id == targetId }?.name ?: "غير محدد"
                                                                                     "ترحيل إلى $groupName"
                                                                                 }
@@ -6766,11 +6704,12 @@ fun StartNewAcademicYearDialog(
                                 val newEnrollmentsToInsert = mutableListOf<Enrollment>()
 
                                 activeGroups.forEach { group ->
-                                    val targetGroupId = groupTargetMap[group.id] ?: 0
+                                    val defaultTargetGroupId = groupTargetMap[group.id] ?: 0
                                     val studs = studentsInGroup[group.id] ?: emptyList()
                                     
                                     studs.forEach { student ->
                                         val choice = studentPromotionChoices[student.id] ?: "promote"
+                                        val targetGroupId = studentTargetGroups[student.id] ?: defaultTargetGroupId
                                         val oldEnrollment = enrollments.find { it.studentId == student.id && it.groupId == group.id && it.academicYearId == (currentYear?.id ?: 1) }
                                         
                                         when (choice) {
@@ -6972,6 +6911,7 @@ fun StudentsScreen(
     
     val activeStudents by viewModel.activeStudents.collectAsState()
     val graduatedStudents by viewModel.graduatedStudents.collectAsState()
+    val withdrawnStudents by viewModel.withdrawnStudents.collectAsState()
     val droppedStudents by viewModel.droppedStudents.collectAsState()
     val allStudentsList by viewModel.allStudentsList.collectAsState()
     val enrollments by viewModel.enrollments.collectAsState()
@@ -6979,11 +6919,12 @@ fun StudentsScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var showAddStudentDialog by remember { mutableStateOf(false) }
-    var selectedFilter by rememberSaveable { mutableStateOf("active") } // "active", "graduated", "dropped", "all"
+    var selectedFilter by rememberSaveable { mutableStateOf("active") } // "active", "graduated", "withdrawn", "dropped", "all"
 
     val studentsSource = when (selectedFilter) {
         "active" -> activeStudents
         "graduated" -> graduatedStudents
+        "withdrawn" -> withdrawnStudents
         "dropped" -> droppedStudents
         else -> allStudentsList
     }
@@ -7054,12 +6995,13 @@ fun StudentsScreen(
 
             // Dynamic filter chips for Student tab
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
                     Triple("active", "نشطون", Color(0xFF2E7D32)),
                     Triple("graduated", "خريجون", Color(0xFF1976D2)),
+                    Triple("withdrawn", "منسحبون", Color(0xFFF57C00)),
                     Triple("dropped", "منقطعون", Color(0xFFC62828)),
                     Triple("all", "الكل", Color(0xFF374151))
                 ).forEach { (filterType, label, color) ->
