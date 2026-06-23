@@ -36,7 +36,8 @@ data class ActivationDetails(
 object LicenseManager {
 
     private const val LICENSE_FILE_NAME = "activation.dat"
-    const val BACKEND_PUBLIC_URL = "https://ais-pre-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app"
+    const val BACKEND_DEV_URL = "https://ais-dev-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app"
+    const val BACKEND_PRE_URL = "https://ais-pre-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app"
     const val BACKEND_LOCAL_URL = "http://10.0.2.2:8080"
     private const val SIGNING_SECRET = "secure_secret_licensekey_signing_backend_2026"
 
@@ -63,6 +64,16 @@ object LicenseManager {
             .build()
     }
 
+    private fun isJsonValid(test: String): Boolean {
+        if (test.trim().isEmpty()) return false
+        return try {
+            JSONObject(test)
+            true
+        } catch (ex: Exception) {
+            false
+        }
+    }
+
     private suspend fun sendPostRequest(path: String, json: JSONObject): String = withContext(Dispatchers.IO) {
         val requestBody = json.toString().toRequestBody("application/json".toMediaType())
         val errors = StringBuilder()
@@ -75,38 +86,52 @@ object LicenseManager {
                 .build()
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string() ?: ""
-                if (response.isSuccessful || response.code == 400 || response.code == 403 || response.code == 404) {
-                    if (body.contains("success") || body.contains("message")) {
-                        return@withContext body
-                    }
+                if (isJsonValid(body)) {
+                    return@withContext body
                 }
-                errors.append("Local Server Error [Code ${response.code}]: ${if (body.length > 100) body.take(100) + "..." else body}\n")
+                errors.append("Local Server returned non-JSON [Code ${response.code}]\n")
             }
         } catch (e: Exception) {
             errors.append("Local Network Fail: ${e.message ?: e.toString()}\n")
-            Timber.d("Local backend fail, trying public url...")
+            Timber.d("Local backend fail, trying dev url...")
         }
 
-        // 2. Try public cloud URL as secondary fallback path
+        // 2. Try development backend URL (active workspace container)
         try {
             val request = Request.Builder()
-                .url("$BACKEND_PUBLIC_URL$path")
+                .url("$BACKEND_DEV_URL$path")
                 .post(requestBody)
                 .build()
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string() ?: ""
-                if (response.isSuccessful || response.code == 400 || response.code == 403 || response.code == 404) {
-                    if (body.contains("success") || body.contains("message")) {
-                        return@withContext body
-                    }
+                if (isJsonValid(body)) {
+                    return@withContext body
                 }
-                errors.append("Public Server Error [Code ${response.code}]: ${if (body.length > 100) body.take(100) + "..." else body}\n")
+                errors.append("Dev Server returned non-JSON [Code ${response.code}]\n")
             }
         } catch (e: Exception) {
-            errors.append("Public Network Fail: ${e.message ?: e.toString()}\n")
+            errors.append("Dev Network Fail: ${e.message ?: e.toString()}\n")
+            Timber.d("Dev backend fail, trying preview url...")
         }
 
-        throw java.io.IOException(errors.toString())
+        // 3. Try preview backend URL
+        try {
+            val request = Request.Builder()
+                .url("$BACKEND_PRE_URL$path")
+                .post(requestBody)
+                .build()
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: ""
+                if (isJsonValid(body)) {
+                    return@withContext body
+                }
+                errors.append("Pre Server returned non-JSON [Code ${response.code}]\n")
+            }
+        } catch (e: Exception) {
+            errors.append("Pre Network Fail: ${e.message ?: e.toString()}\n")
+        }
+
+        throw java.io.IOException("فشل الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت وحالة السيرفر.")
     }
 
     /**
@@ -129,7 +154,7 @@ object LicenseManager {
             sha256(sb.toString())
         } catch (e: Exception) {
             Timber.e(e, "Error generating device fingerprint")
-            "fallback_fingerprint_" + Build.MODEL.hashCode()
+            sha256("fallback_fingerprint_" + Build.MODEL + "_" + Build.MODEL.hashCode())
         }
     }
 
