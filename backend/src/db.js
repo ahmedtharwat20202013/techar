@@ -1,12 +1,21 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    console.error('[FATAL] DATABASE_URL environment variable is required');
+    process.exit(1);
+}
+
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Initialize the database connection pool using environment variables
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/teacher_assistant',
+    connectionString,
     max: 20, // Max concurrent connections in pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
+    ssl: isProduction ? { rejectUnauthorized: true } : (connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : false)
 });
 
 pool.on('error', (err, client) => {

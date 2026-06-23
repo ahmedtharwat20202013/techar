@@ -724,9 +724,49 @@ app.post('/api/demo/initialize', async (req, res) => {
 // LICENSE SYSTEM INTEGRATION (ONLINE / OFFLINE ANTI-CRACK CONTROL LAYER)
 // =========================================================================
 const crypto = require('crypto');
-const LICENSE_SECRET = process.env.LICENSE_SERVER_SECRET || 'secure_secret_licensekey_signing_backend_2026';
+const rateLimit = require('express-rate-limit');
 
-// Ensure database schema matches target
+const LICENSE_SECRET = process.env.LICENSE_SERVER_SECRET;
+if (!LICENSE_SECRET) {
+    console.error('[FATAL] LICENSE_SERVER_SECRET environment variable is required');
+    process.exit(1);
+}
+
+// 1. Rate Limiters
+const licenseLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per window
+    message: { 
+        success: false, 
+        message: 'محاولات كثيرة جداً. يرجى المحاولة لاحقاً.' 
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const validateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20, // 20 validation checks per minute (raised slightly to allow robust background updates)
+    message: { 
+        success: false, 
+        message: 'تم تجاوز حد معدل الطلبات للتحقق.' 
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// 2. HTTPS Enforcement (before routes)
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') !== 'https') {
+            res.redirect(`https://${req.header('host')}${req.url}`);
+        } else {
+            next();
+        }
+    });
+}
+
+// Ensure database schema matches target with expires_at column support
 db.query(`
     CREATE TABLE IF NOT EXISTS licenses (
         license_key TEXT PRIMARY KEY,
@@ -735,18 +775,28 @@ db.query(`
         activation_token TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
         activated_at TIMESTAMP,
-        last_check TIMESTAMP
+        last_check TIMESTAMP,
+        expires_at TIMESTAMP
     );
 `).then(() => {
-    console.log('[Licensing] Ensure licenses table verified successfully.');
-    // Pre-insert user's requested testing license so they can activate immediately!
+    // Add expires_at column if database already exists without it
     return db.query(`
-        INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
-        VALUES ('026B6-F8F95-44C92-EAB7E', FALSE, NULL, NULL, CURRENT_TIMESTAMP)
-        ON CONFLICT (license_key) DO NOTHING;
-    `);
+        ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+    `).catch(err => {
+        console.log('[Licensing] expires_at column already exists or error:', err.message);
+    });
 }).then(() => {
-    console.log('[Licensing] Pre-baked test license 026B6-F8F95-44C92-EAB7E verified.');
+    console.log('[Licensing] Ensure licenses table verified successfully.');
+    // Only seed test data in development
+    if (process.env.NODE_ENV === 'development') {
+        return db.query(`
+            INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
+            VALUES ('026B6-F8F95-44C92-EAB7E', FALSE, NULL, NULL, CURRENT_TIMESTAMP)
+            ON CONFLICT (license_key) DO NOTHING;
+        `).then(() => {
+            console.log('[Licensing] Test license seeded (dev only).');
+        });
+    }
 }).catch((err) => {
     console.error('[Licensing] Table/Seed setup failed:', err);
 });
@@ -755,6 +805,16 @@ db.query(`
 function makeActivationToken(licenseKey, deviceId) {
     const payload = `${licenseKey}:${deviceId}`;
     return crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('hex');
+}
+
+// Helper: Validation utilities
+function isValidLicenseKey(key) {
+    // Allow formats like LIC-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX
+    return /^(LIC-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(key);
+}
+
+function isValidDeviceId(id) {
+    return id && id.length >= 10 && id.length <= 256;
 }
 
 // Helper: generate customizable random licensing keys
@@ -814,22 +874,42 @@ app.get('/api/license/list', async (req, res) => {
 /**
  * 3. Endpoint: Activate License Key
  */
-app.post('/api/license/activate', async (req, res) => {
+app.post('/api/license/activate', licenseLimiter, async (req, res) => {
     const { license_key, device_id, user_name } = req.body;
     
     if (!license_key || !device_id) {
+        console.log(`[AUDIT] FAILED activation: Missing fields, ip=${req.ip}`);
         return res.status(400).json({
             success: false,
             message: 'الحقول المطلوبة (رمز التفعيل، معرف الجهاز) مفقودة.'
         });
     }
     
-    const cleanKey = license_key.trim();
+    const cleanKey = license_key.trim().toUpperCase();
     const cleanDevice = device_id.trim();
+    
+    if (!isValidLicenseKey(cleanKey)) {
+        console.log(`[AUDIT] FAILED activation: Invalid key format (${cleanKey}), ip=${req.ip}`);
+        return res.status(400).json({
+            success: false,
+            message: 'صيغة رمز التفعيل المدخل غير صالحة.'
+        });
+    }
+    
+    if (!isValidDeviceId(cleanDevice)) {
+        console.log(`[AUDIT] FAILED activation: Invalid device id format, ip=${req.ip}`);
+        return res.status(400).json({
+            success: false,
+            message: 'معرف الجهاز غير صالح.'
+        });
+    }
+    
+    console.log(`[AUDIT] Activation attempt: key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
     
     try {
         const checkRes = await db.query('SELECT * FROM licenses WHERE license_key = $1', [cleanKey]);
         if (checkRes.rows.length === 0) {
+            console.log(`[AUDIT] FAILED activation: Key not found in DB (${cleanKey}), ip=${req.ip}`);
             return res.status(404).json({
                 success: false,
                 message: 'رمز التفعيل المدخل غير صحيح. يرجى التأكد وإعادة المحاولة.'
@@ -837,6 +917,15 @@ app.post('/api/license/activate', async (req, res) => {
         }
         
         const license = checkRes.rows[0];
+        
+        // Expiration check
+        if (license.expires_at && new Date(license.expires_at) < new Date()) {
+            console.log(`[AUDIT] FAILED activation: Key expired (${cleanKey}), expires_at=${license.expires_at}, ip=${req.ip}`);
+            return res.status(401).json({
+                success: false,
+                message: 'رمز التفعيل منتهي الصلاحية.'
+            });
+        }
         
         // Anti-crack: check if license is used
         if (license.is_used) {
@@ -849,6 +938,7 @@ app.post('/api/license/activate', async (req, res) => {
                     WHERE license_key = $2
                 `, [token, cleanKey]);
                 
+                console.log(`[AUDIT] SUCCESSFUL activation (reactivation): key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
                 return res.json({
                     success: true,
                     message: 'تم تفعيل الرخصة بنجاح على هذا الجهاز مرة أخرى.',
@@ -862,6 +952,7 @@ app.post('/api/license/activate', async (req, res) => {
                 });
             } else {
                 // Different device: strictly reject to avoid sharing codes
+                console.log(`[AUDIT] FAILED activation: Key already in use on another device, key=${cleanKey}, original_device=${license.device_id}, new_device=${cleanDevice}, ip=${req.ip}`);
                 return res.status(403).json({
                     success: false,
                     message: 'عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز.'
@@ -882,6 +973,7 @@ app.post('/api/license/activate', async (req, res) => {
             RETURNING *
         `, [cleanDevice, token, cleanKey]);
         
+        console.log(`[AUDIT] SUCCESSFUL activation (new): key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
         return res.json({
             success: true,
             message: 'تهانينا! تم تفعيل رخصة التطبيق بنجاح لجهازك الخاص.',
@@ -906,33 +998,63 @@ app.post('/api/license/activate', async (req, res) => {
 /**
  * 4. Endpoint: Regular Online Recheck (Anti-bypass security check)
  */
-app.post('/api/license/validate', async (req, res) => {
+app.post('/api/license/validate', validateLimiter, async (req, res) => {
     const { license_key, device_id, activation_token } = req.body;
     
     if (!license_key || !device_id || !activation_token) {
+        console.log(`[AUDIT] FAILED validation: Missing fields, ip=${req.ip}`);
         return res.status(400).json({
             success: false,
             message: 'البيانات الأمنية للرخصة غير مكتملة.'
         });
     }
     
-    const cleanKey = license_key.trim();
+    const cleanKey = license_key.trim().toUpperCase();
     const cleanDevice = device_id.trim();
     const cleanToken = activation_token.trim();
+    
+    if (!isValidLicenseKey(cleanKey)) {
+        console.log(`[AUDIT] FAILED validation: Invalid key format (${cleanKey}), ip=${req.ip}`);
+        return res.status(400).json({
+            success: false,
+            message: 'صيغة رمز التفعيل غير صالحة.'
+        });
+    }
+    
+    if (!isValidDeviceId(cleanDevice)) {
+        console.log(`[AUDIT] FAILED validation: Invalid device id, ip=${req.ip}`);
+        return res.status(400).json({
+            success: false,
+            message: 'معرف الجهاز غير صالح.'
+        });
+    }
+    
+    console.log(`[AUDIT] Validation attempt: key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
     
     try {
         // Validate database record integrity
         const queryRes = await db.query('SELECT * FROM licenses WHERE license_key = $1', [cleanKey]);
         if (queryRes.rows.length === 0) {
+            console.log(`[AUDIT] FAILED validation: Key not found in DB (${cleanKey}), ip=${req.ip}`);
             return res.status(404).json({ success: false, message: 'الرخصة غير مسجلة بالنظام.' });
         }
         
         const license = queryRes.rows[0];
         
+        // Expiration check
+        if (license.expires_at && new Date(license.expires_at) < new Date()) {
+            console.log(`[AUDIT] FAILED validation: Key expired (${cleanKey}), expires_at=${license.expires_at}, ip=${req.ip}`);
+            return res.status(401).json({
+                success: false,
+                message: 'رخصتك منتهية الصلاحية.'
+            });
+        }
+        
         // Calculate expected backend security match
         const expectedToken = makeActivationToken(cleanKey, cleanDevice);
         
         if (!license.is_used || license.device_id !== cleanDevice || license.activation_token !== cleanToken || expectedToken !== cleanToken) {
+            console.log(`[AUDIT] FAILED validation: Identity verification failed. is_used=${license.is_used}, db_device=${license.device_id}, req_device=${cleanDevice}, token_match=${expectedToken === cleanToken}, ip=${req.ip}`);
             return res.status(401).json({
                 success: false,
                 message: 'عملية التحقق فشلت. تم كشف محاولة اختراق أو استخدام رخصة غير صالحة.'
@@ -946,6 +1068,7 @@ app.post('/api/license/validate', async (req, res) => {
             WHERE license_key = $1
         `, [cleanKey]);
         
+        console.log(`[AUDIT] SUCCESSFUL validation: key=${cleanKey}, device=${cleanDevice}, ip=${req.ip}`);
         return res.json({
             success: true,
             message: 'تم التحقق من رخصة الجهاز وتحديث سجل الأمان.',

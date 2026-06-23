@@ -16,15 +16,11 @@ import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import javax.crypto.Cipher
-import javax.crypto.Mac
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 data class ActivationDetails(
     val licenseKey: String,
@@ -39,30 +35,13 @@ object LicenseManager {
     const val BACKEND_DEV_URL = "https://ais-dev-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app"
     const val BACKEND_PRE_URL = "https://ais-pre-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app"
     const val BACKEND_LOCAL_URL = "http://10.0.2.2:8080"
-    private const val SIGNING_SECRET = "secure_secret_licensekey_signing_backend_2026"
+    
+    private val PBKDF2_SALT = "teacher_assistant_secure_salt_2026".toByteArray(Charsets.UTF_8)
 
-    val client: OkHttpClient = try {
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        })
-
-        val sslContext = SSLContext.getInstance("SSL")
-        sslContext.init(null, trustAllCerts, SecureRandom())
-        
-        OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            .hostnameVerifier { _, _ -> true }
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-    } catch (e: Exception) {
-        OkHttpClient.Builder()
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-    }
+    val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     private fun isJsonValid(test: String): Boolean {
         if (test.trim().isEmpty()) return false
@@ -140,21 +119,33 @@ object LicenseManager {
     fun getDeviceFingerprint(context: Context): String {
         return try {
             val sb = StringBuilder()
-            sb.append(Build.BOARD).append("|")
-            sb.append(Build.BRAND).append("|")
-            sb.append(Build.DEVICE).append("|")
-            sb.append(Build.HARDWARE).append("|")
-            sb.append(Build.MODEL).append("|")
-            sb.append(Build.PRODUCT).append("|")
-            sb.append(Build.VERSION.RELEASE).append("|")
-            sb.append(Build.VERSION.SDK_INT).append("|")
-            val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown_android_id"
+            
+            // Hardware identifiers
+            sb.append(Build.BOARD).append(":")
+            sb.append(Build.BRAND).append(":")
+            sb.append(Build.DEVICE).append(":")
+            sb.append(Build.HARDWARE).append(":")
+            sb.append(Build.MANUFACTURER).append(":")
+            sb.append(Build.MODEL).append(":")
+            sb.append(Build.PRODUCT).append(":")
+            sb.append(Build.VERSION.RELEASE).append(":")
+            sb.append(Build.VERSION.SDK_INT).append(":")
+            
+            // Android ID (unique per device + user)
+            val androidId = Settings.Secure.getString(
+                context.contentResolver, 
+                Settings.Secure.ANDROID_ID
+            ) ?: "unknown"
             sb.append(androidId)
+            
+            // Add package-specific salt (different per app install)
+            val packageName = context.packageName
+            sb.append(":").append(packageName)
             
             sha256(sb.toString())
         } catch (e: Exception) {
             Timber.e(e, "Error generating device fingerprint")
-            sha256("fallback_fingerprint_" + Build.MODEL + "_" + Build.MODEL.hashCode())
+            sha256("fallback_fingerprint_" + Build.MODEL + "_" + Build.MODEL.hashCode() + "_" + context.packageName)
         }
     }
 
@@ -164,22 +155,24 @@ object LicenseManager {
         return hash.fold("") { str, it -> str + "%02x".format(it) }
     }
 
-    private fun computeHmacSha256(payload: String, secret: String): String {
-        val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256")
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(key)
-        val hash = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
-        return hash.fold("") { str, it -> str + "%02x".format(it) }
+    private fun deriveKey(password: String, salt: ByteArray): Pair<SecretKeySpec, IvParameterSpec> {
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val spec = PBEKeySpec(password.toCharArray(), salt, 10000, 256)
+        val tmp = factory.generateSecret(spec)
+        val keyBytes = tmp.encoded
+        
+        // Use first 16 bytes for AES key, next 16 for IV
+        val aesKey = keyBytes.copyOfRange(0, 16)
+        val iv = keyBytes.copyOfRange(16, 32)
+        
+        return Pair(SecretKeySpec(aesKey, "AES"), IvParameterSpec(iv))
     }
 
     /**
      * AES Encryption using the device specific fingerprint as key bytes
      */
     private fun encryptAES(plainText: String, keyString: String): String {
-        val keyBytes = keyString.substring(0, 16).toByteArray(Charsets.UTF_8)
-        val ivBytes = keyString.substring(16, 32).toByteArray(Charsets.UTF_8)
-        val secretKeySpec = SecretKeySpec(keyBytes, "AES")
-        val ivParameterSpec = IvParameterSpec(ivBytes)
+        val (secretKeySpec, ivParameterSpec) = deriveKey(keyString, PBKDF2_SALT)
 
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivParameterSpec)
@@ -191,10 +184,7 @@ object LicenseManager {
      * AES Decryption using the device specific fingerprint as key bytes
      */
     private fun decryptAES(encryptedText: String, keyString: String): String {
-        val keyBytes = keyString.substring(0, 16).toByteArray(Charsets.UTF_8)
-        val ivBytes = keyString.substring(16, 32).toByteArray(Charsets.UTF_8)
-        val secretKeySpec = SecretKeySpec(keyBytes, "AES")
-        val ivParameterSpec = IvParameterSpec(ivBytes)
+        val (secretKeySpec, ivParameterSpec) = deriveKey(keyString, PBKDF2_SALT)
 
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
         cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivParameterSpec)
@@ -203,26 +193,64 @@ object LicenseManager {
     }
 
     /**
-     * Check if offline/online license resides correctly on disk
+     * Check activation status - ONLY via online validation
+     * Falls back to cached "grace period" if offline
      */
     fun isAppActivated(context: Context): Boolean {
         val details = readLicenseLocally(context) ?: return false
         val currentFingerprint = getDeviceFingerprint(context)
-
-        // 1. Device ID matching
+        
+        // Basic local checks only (no secret verification)
         if (details.deviceId != currentFingerprint) {
-            Timber.w("Activation failed: Device fingerprint mismatch.")
+            Timber.w("Device mismatch")
             return false
         }
-
-        // 2. Token match signature integrity check
-        val expectedToken = computeHmacSha256("${details.licenseKey}:${details.deviceId}", SIGNING_SECRET)
-        if (details.activationToken != expectedToken) {
-            Timber.w("Activation failed: Activation token signature mismatch.")
-            return false
+        
+        // Check if we have a valid cached validation within grace period
+        val gracePeriod = 7 * 24 * 60 * 60 * 1000L // 7 days
+        val now = System.currentTimeMillis()
+        
+        if (now - details.timestamp < gracePeriod) {
+            return true // Within grace period, allow offline
         }
+        
+        // Grace period expired - MUST go online
+        return false
+    }
 
-        return true
+    /**
+     * Online-only validation - server verifies the token
+     */
+    suspend fun validateLicenseOnline(context: Context): Result<Boolean> = withContext(Dispatchers.IO) {
+        val details = readLicenseLocally(context) ?: return@withContext Result.failure(Exception("No license found"))
+        
+        try {
+            val json = JSONObject()
+                .put("license_key", details.licenseKey)
+                .put("device_id", details.deviceId)
+                .put("activation_token", details.activationToken)
+
+            val body = sendPostRequest("/api/license/validate", json)
+            val jsonObj = JSONObject(body)
+            
+            if (jsonObj.getBoolean("success")) {
+                // Update timestamp on successful validation
+                val updated = details.copy(timestamp = System.currentTimeMillis())
+                saveLicenseLocally(context, updated)
+                Result.success(true)
+            } else {
+                deinstallLicense(context)
+                Result.failure(Exception(jsonObj.optString("message", "License invalid")))
+            }
+        } catch (e: Exception) {
+            // Network error - allow if within grace period
+            val withinGrace = (System.currentTimeMillis() - details.timestamp) < (7 * 24 * 60 * 60 * 1000L)
+            if (withinGrace) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("Connection required for license validation"))
+            }
+        }
     }
 
     /**
@@ -346,29 +374,8 @@ object LicenseManager {
     /**
      * Anti-crack Layer: Runs periodic revalidation online when network is present
      */
-    suspend fun tryOnlineRevalidation(context: Context) = withContext(Dispatchers.IO) {
-        if (!isNetworkAvailable(context)) return@withContext
-        
-        val details = readLicenseLocally(context) ?: return@withContext
-        
-        try {
-            val json = JSONObject()
-                .put("license_key", details.licenseKey)
-                .put("device_id", details.deviceId)
-                .put("activation_token", details.activationToken)
-
-            val body = sendPostRequest("/api/license/validate", json)
-            val jsonObj = JSONObject(body)
-            if (jsonObj.getBoolean("success")) {
-                // Success: Keep app active and update timestamp
-                val updatedDetails = details.copy(timestamp = System.currentTimeMillis())
-                saveLicenseLocally(context, updatedDetails)
-                Timber.d("Periodic license validation succeeded and recorded.")
-            } else {
-                deinstallLicense(context)
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to connect to license validation endpoint, skipping this turn.")
-        }
+    suspend fun tryOnlineRevalidation(context: Context) {
+        if (!isNetworkAvailable(context)) return
+        validateLicenseOnline(context)
     }
 }
