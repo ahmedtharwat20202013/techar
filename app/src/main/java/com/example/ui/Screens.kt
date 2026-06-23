@@ -4170,91 +4170,109 @@ fun StudentProfileScreen(
                         }
                     }
 
-                    // PDF Context Selection
-                    if (studentEnrollments.size > 1) {
-                        Text("اختر بيانات المرحلة/السنة لملف الـ PDF:", fontSize = 12.sp, color = TextGray)
-                        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth().clickable { expandedPdfEnrollment = true },
-                                colors = CardDefaults.cardColors(containerColor = SoftBgGreen),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val selGroup = groups.find { it.id == pdfGroupId }
-                                    Text(selGroup?.name ?: "مجموعة غير معروفة", color = PrimaryDarkGreen, fontSize = 14.sp)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryDarkGreen)
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = expandedPdfEnrollment,
-                                onDismissRequest = { expandedPdfEnrollment = false }
-                            ) {
-                                studentEnrollments.forEach { enr ->
-                                    val g = groups.find { it.id == enr.groupId }
-                                    val year = academicYears.find { it.id == enr.academicYearId }
-                                    DropdownMenuItem(
-                                        text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
-                                        onClick = {
-                                            pdfGroupId = enr.groupId
-                                            expandedPdfEnrollment = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Row 2: View PDF & Export PDF
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Dedicated PDF Section
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F4F8)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Button(
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            onClick = {
-                                student?.let { stud ->
-                                    exportStudentProfilePdf(
-                                        context = context,
-                                        student = stud,
-                                        group = pdfGroup,
-                                        payments = paymentList, // Optional: Filter if we have related date
-                                        exams = examScores,
-                                        attendances = attendances,
-                                        sessions = pdfGroupSessions, // Passed filtered sessions!
-                                        viewImmediately = true
-                                    )
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                            shape = RoundedCornerShape(10.dp)
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("عرض ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                            Text(
+                                "تقارير الطالب (PDF)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = PrimaryDarkGreen
+                            )
+                            
+                            if (studentEnrollments.size > 1) {
+                                Text("اختر بيانات المرحلة/السنة لملف الـ PDF:", fontSize = 12.sp, color = TextGray)
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().clickable { expandedPdfEnrollment = true },
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val selGroup = groups.find { it.id == pdfGroupId }
+                                            Text(selGroup?.name ?: "مجموعة غير معروفة", color = PrimaryDarkGreen, fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = PrimaryDarkGreen)
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = expandedPdfEnrollment,
+                                        onDismissRequest = { expandedPdfEnrollment = false }
+                                    ) {
+                                        studentEnrollments.forEach { enr ->
+                                            val g = groups.find { it.id == enr.groupId }
+                                            val year = academicYears.find { it.id == enr.academicYearId }
+                                            DropdownMenuItem(
+                                                text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
+                                                onClick = {
+                                                    pdfGroupId = enr.groupId
+                                                    expandedPdfEnrollment = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
 
-                        Button(
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            onClick = {
-                                student?.let { stud ->
-                                    exportStudentProfilePdf(
-                                        context = context,
-                                        student = stud,
-                                        group = pdfGroup,
-                                        payments = paymentList,
-                                        exams = examScores,
-                                        attendances = attendances,
-                                        sessions = pdfGroupSessions,
-                                        viewImmediately = false
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    onClick = {
+                                        student?.let { stud ->
+                                            exportStudentProfilePdf(
+                                                context = context,
+                                                student = stud,
+                                                group = pdfGroup,
+                                                payments = paymentList,
+                                                exams = examScores,
+                                                attendances = attendances,
+                                                sessions = pdfGroupSessions,
+                                                viewImmediately = true
+                                            )
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("عرض ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("تحميل ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                                Button(
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    onClick = {
+                                        student?.let { stud ->
+                                            exportStudentProfilePdf(
+                                                context = context,
+                                                student = stud,
+                                                group = pdfGroup,
+                                                payments = paymentList,
+                                                exams = examScores,
+                                                attendances = attendances,
+                                                sessions = pdfGroupSessions,
+                                                viewImmediately = false
+                                            )
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("تحميل ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
 
@@ -6329,7 +6347,7 @@ fun StartNewAcademicYearDialog(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "اختر الوجهة التلقائية لكل مجموعة، ثم حدد الإجراء المطلوب لكل طالب بشكل فردي (ترحيل أو إعادة أو تخرج أو مغادرة).",
+                                    text = "اختر الوجهة التلقائية لكل مجموعة، وحدد نوع الإجراء (ترحيل أو تخرج).",
                                     fontSize = 11.sp,
                                     color = TextGray,
                                     lineHeight = 16.sp
@@ -6385,156 +6403,53 @@ fun StartNewAcademicYearDialog(
                                                             )
                                                         }
                                                         
-                                                        IconButton(onClick = { expandedGroups[group.id] = !isExpanded }) {
-                                                            Icon(
-                                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                                                contentDescription = "عرض الطلاب"
+                                                        // Remove expansion button since we don't show individual students anymore
+                                                    }
+                                                    
+                                                    // State for the group's chosen action. We take the choice from the first student in the group.
+                                                    val groupFirstStudent = groupStudentsList.firstOrNull()
+                                                    val groupChoice = if (groupFirstStudent != null) studentPromotionChoices[groupFirstStudent.id] ?: "promote" else "promote"
+                                                    val groupTargetGroup = if (groupFirstStudent != null) studentTargetGroups[groupFirstStudent.id] else null
+
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    
+                                                    // Select action
+                                                    Row(
+                                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        androidx.compose.material3.FilterChip(
+                                                            selected = groupChoice == "promote",
+                                                            onClick = { 
+                                                                groupStudentsList.forEach { s -> studentPromotionChoices[s.id] = "promote" }
+                                                            },
+                                                            label = { Text("ترحيل المجموعة ➡️", fontSize = 11.sp) },
+                                                            colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                                                selectedContainerColor = Color(0xFFE3F2FD)
                                                             )
-                                                        }
+                                                        )
+                                                        androidx.compose.material3.FilterChip(
+                                                            selected = groupChoice == "graduated",
+                                                            onClick = { 
+                                                                groupStudentsList.forEach { s -> studentPromotionChoices[s.id] = "graduated" }
+                                                            },
+                                                            label = { Text("تخريج المجموعة 🎓", fontSize = 11.sp) },
+                                                            colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                                                selectedContainerColor = Color(0xFFE8F5E9)
+                                                            )
+                                                        )
                                                     }
 
-                                                    // Removed Default target dropdown per user request
-
-                                                    // Students customizable list
-                                                    if (isExpanded) {
-                                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                                        if (groupStudentsList.isEmpty()) {
-                                                            Text("لا يوجد طلاب نشطين في هذه المجموعة.", color = TextGray, fontSize = 11.sp)
-                                                        } else {
-                                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                                groupStudentsList.forEach { student ->
-                                                                    val selectedChoice = studentPromotionChoices[student.id] ?: "promote"
-                                                                    Column(
-                                                                        modifier = Modifier
-                                                                            .fillMaxWidth()
-                                                                            .background(Color.White, RoundedCornerShape(8.dp))
-                                                                            .border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                                                            .padding(8.dp),
-                                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                                    ) {
-                                                                        Row(
-                                                                            modifier = Modifier.fillMaxWidth(),
-                                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                                            verticalAlignment = Alignment.CenterVertically
-                                                                        ) {
-                                                                            Text(
-                                                                                text = student.name,
-                                                                                fontWeight = FontWeight.Bold,
-                                                                                fontSize = 13.sp,
-                                                                                color = Color.Black
-                                                                            )
-                                                                            val displayChoiceText = when (selectedChoice) {
-                                                                                "promote" -> {
-                                                                                    val targetId = studentTargetGroups[student.id] ?: 0
-                                                                                    val groupName = groups.find { it.id == targetId }?.name ?: "غير محدد"
-                                                                                    "ترحيل إلى $groupName"
-                                                                                }
-                                                                                "repeat" -> "إعادة تكرار"
-                                                                                "graduated" -> "خريج"
-                                                                                "dropped" -> "مغادرة"
-                                                                                else -> "انتقال تلقائي"
-                                                                            }
-                                                                            Text(
-                                                                                text = displayChoiceText,
-                                                                                fontSize = 11.sp,
-                                                                                fontWeight = FontWeight.Bold,
-                                                                                color = when (selectedChoice) {
-                                                                                    "promote" -> SuccessGreen
-                                                                                    "repeat" -> Color(0xFFE65100)
-                                                                                    "graduated" -> AccentGreen
-                                                                                    else -> DangerRed
-                                                                                }
-                                                                            )
-                                                                        }
-
-                                                                        // Choice Bar
-                                                                        Row(
-                                                                            modifier = Modifier.fillMaxWidth(),
-                                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                                        ) {
-                                                                            val choices = listOf(
-                                                                                "promote" to "ترحيل",
-                                                                                "repeat" to "إعادة",
-                                                                                "graduated" to "تخرج",
-                                                                                "dropped" to "مغادرة"
-                                                                            )
-                                                                            choices.forEach { (key, label) ->
-                                                                                val isSelected = selectedChoice == key
-                                                                                var showPromoteDropdown by remember { mutableStateOf(false) }
-
-                                                                                Box(
-                                                                                    modifier = Modifier
-                                                                                        .weight(1f)
-                                                                                        .background(
-                                                                                            if (isSelected) {
-                                                                                                when (key) {
-                                                                                                    "promote" -> SuccessGreen.copy(alpha = 0.15f)
-                                                                                                    "repeat" -> Color(0xFFFFF3E0)
-                                                                                                    "graduated" -> SoftBgGreen
-                                                                                                    else -> DangerRed.copy(alpha = 0.15f)
-                                                                                                }
-                                                                                            } else Color(0xFFF3F4F6),
-                                                                                            RoundedCornerShape(6.dp)
-                                                                                        )
-                                                                                        .border(
-                                                                                            1.dp,
-                                                                                            if (isSelected) {
-                                                                                                when (key) {
-                                                                                                    "promote" -> SuccessGreen
-                                                                                                    "repeat" -> Color(0xFFE65100)
-                                                                                                    "graduated" -> AccentGreen
-                                                                                                    else -> DangerRed
-                                                                                                }
-                                                                                            } else Color.Transparent,
-                                                                                            RoundedCornerShape(6.dp)
-                                                                                        )
-                                                                                        .clickable { 
-                                                                                            studentPromotionChoices[student.id] = key 
-                                                                                            if (key == "promote") {
-                                                                                                showPromoteDropdown = true
-                                                                                            }
-                                                                                        }
-                                                                                        .padding(vertical = 6.dp),
-                                                                                    contentAlignment = Alignment.Center
-                                                                                ) {
-                                                                                    Text(
-                                                                                        text = label,
-                                                                                        fontSize = 11.sp,
-                                                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                                                        color = if (isSelected) {
-                                                                                            when (key) {
-                                                                                                "promote" -> SuccessGreen
-                                                                                                "repeat" -> Color(0xFFD84315)
-                                                                                                "graduated" -> PrimaryDarkGreen
-                                                                                                else -> DangerRed
-                                                                                            }
-                                                                                        } else Color.Gray
-                                                                                    )
-                                                                                    
-                                                                                    if (key == "promote") {
-                                                                                        DropdownMenu(
-                                                                                            expanded = showPromoteDropdown,
-                                                                                            onDismissRequest = { showPromoteDropdown = false }
-                                                                                        ) {
-                                                                                            groups.forEach { candidate ->
-                                                                                                DropdownMenuItem(
-                                                                                                    text = { Text("ترحيل إلى: ${candidate.name}", fontSize = 12.sp) },
-                                                                                                    onClick = {
-                                                                                                        studentTargetGroups[student.id] = candidate.id
-                                                                                                        showPromoteDropdown = false
-                                                                                                    }
-                                                                                                )
-                                                                                            }
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
+                                                    if (groupChoice == "promote") {
+                                                        TargetGroupDropdown(
+                                                            groups = groups.filter { it.id != group.id },
+                                                            selectedGroupId = groupTargetGroup,
+                                                            onGroupSelected = { newGroupId ->
+                                                                groupStudentsList.forEach { s -> studentTargetGroups[s.id] = newGroupId }
                                                             }
-                                                        }
+                                                        )
                                                     }
+
                                                 }
                                             }
                                         }
@@ -6545,9 +6460,7 @@ fun StartNewAcademicYearDialog(
                         3 -> {
                             // Step 3: Confirmation Summary
                             val summaryPromote = studentPromotionChoices.values.count { it == "promote" }
-                            val summaryRepeat = studentPromotionChoices.values.count { it == "repeat" }
                             val summaryGraduated = studentPromotionChoices.values.count { it == "graduated" }
-                            val summaryDropped = studentPromotionChoices.values.count { it == "dropped" }
 
                             Column(
                                 modifier = Modifier
@@ -6585,20 +6498,12 @@ fun StartNewAcademicYearDialog(
                                             Text(newYearLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Black)
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("عدد الطلاب المنتقلون لصفوف جديدة:", fontSize = 12.sp, color = TextGray)
+                                            Text("عدد الطلاب المنتقلون لمجموعات جديدة:", fontSize = 12.sp, color = TextGray)
                                             Text("$summaryPromote طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SuccessGreen)
-                                        }
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("عدد الطلاب الباقون للإعادة:", fontSize = 12.sp, color = TextGray)
-                                            Text("$summaryRepeat طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFE65100))
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             Text("عدد الطلاب المتخرجين:", fontSize = 12.sp, color = TextGray)
                                             Text("$summaryGraduated طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AccentGreen)
-                                        }
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("عدد الطلاب المنقطعين/المغادرين:", fontSize = 12.sp, color = TextGray)
-                                            Text("$summaryDropped طالب", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DangerRed)
                                         }
                                     }
                                 }
@@ -6686,6 +6591,25 @@ fun StartNewAcademicYearDialog(
                                             Toast.makeText(context, "صيغة التواريخ غير صالحة", Toast.LENGTH_SHORT).show()
                                         }
                                     }
+                                } else if (currentStep == 2) {
+                                    val errors = mutableListOf<String>()
+                                    activeGroups.forEach { group ->
+                                        val studs = studentsInGroup[group.id] ?: emptyList()
+                                        studs.forEach { student ->
+                                            val choice = studentPromotionChoices[student.id] ?: "promote"
+                                            if (choice == "promote") {
+                                                val targetGroup = studentTargetGroups[student.id]
+                                                if (targetGroup == null || targetGroup == 0) {
+                                                    errors.add("${student.name}: لم يتم اختيار المجموعة الجديدة")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (errors.isNotEmpty()) {
+                                        Toast.makeText(context, errors.first(), Toast.LENGTH_LONG).show()
+                                    } else {
+                                        currentStep++
+                                    }
                                 } else {
                                     currentStep++
                                 }
@@ -6704,12 +6628,11 @@ fun StartNewAcademicYearDialog(
                                 val newEnrollmentsToInsert = mutableListOf<Enrollment>()
 
                                 activeGroups.forEach { group ->
-                                    val defaultTargetGroupId = groupTargetMap[group.id] ?: 0
                                     val studs = studentsInGroup[group.id] ?: emptyList()
                                     
                                     studs.forEach { student ->
                                         val choice = studentPromotionChoices[student.id] ?: "promote"
-                                        val targetGroupId = studentTargetGroups[student.id] ?: defaultTargetGroupId
+                                        val targetGroupId = studentTargetGroups[student.id] ?: 0
                                         val oldEnrollment = enrollments.find { it.studentId == student.id && it.groupId == group.id && it.academicYearId == (currentYear?.id ?: 1) }
                                         
                                         when (choice) {
@@ -6729,23 +6652,14 @@ fun StartNewAcademicYearDialog(
                                                     oldEnrollmentsToUpdate.add(it.copy(status = "active"))
                                                 }
                                             }
-                                            "repeat" -> {
-                                                newEnrollmentsToInsert.add(
-                                                    Enrollment(
-                                                        studentId = student.id,
-                                                        groupId = group.id,
-                                                        academicYearId = 0,
-                                                        status = "active",
-                                                        enrollmentDate = newYearStartDate
-                                                    )
-                                                )
-                                                oldEnrollment?.let {
-                                                    oldEnrollmentsToUpdate.add(it.copy(status = "active"))
-                                                }
-                                            }
                                             "graduated" -> {
                                                 oldEnrollment?.let {
                                                     oldEnrollmentsToUpdate.add(it.copy(status = "graduated"))
+                                                }
+                                            }
+                                            "withdrawn" -> {
+                                                oldEnrollment?.let {
+                                                    oldEnrollmentsToUpdate.add(it.copy(status = "withdrawn"))
                                                 }
                                             }
                                             "dropped" -> {
@@ -8769,4 +8683,137 @@ fun ExamsScreen(
 
 fun getArabicDayName(dateStr: String): String {
     return com.example.data.DateUtils.getArabicDayName(dateStr)
+}
+
+@Composable
+fun StudentMigrationRow(
+    student: com.example.data.Student,
+    groups: List<com.example.data.Group>,
+    currentGroupId: Int,
+    selectedChoice: String,
+    selectedTargetGroupId: Int?,
+    onChoiceChange: (String) -> Unit,
+    onTargetGroupChange: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(8.dp))
+            .border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(student.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    "المجموعة الحالية: ${groups.find { it.id == currentGroupId }?.name ?: "غير معروف"}",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            androidx.compose.material3.FilterChip(
+                selected = selectedChoice == "promote",
+                onClick = { onChoiceChange("promote") },
+                label = { Text("ينتقل ➡️", fontSize = 11.sp) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFE3F2FD)
+                )
+            )
+            androidx.compose.material3.FilterChip(
+                selected = selectedChoice == "graduated",
+                onClick = { onChoiceChange("graduated") },
+                label = { Text("يتخرج 🎓", fontSize = 11.sp) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFE8F5E9)
+                )
+            )
+            androidx.compose.material3.FilterChip(
+                selected = selectedChoice == "withdrawn",
+                onClick = { onChoiceChange("withdrawn") },
+                label = { Text("ينسحب ❌", fontSize = 11.sp) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFFFF3E0)
+                )
+            )
+            androidx.compose.material3.FilterChip(
+                selected = selectedChoice == "dropped",
+                onClick = { onChoiceChange("dropped") },
+                label = { Text("انقطع 🚫", fontSize = 11.sp) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFFFEBEE)
+                )
+            )
+        }
+
+        if (selectedChoice == "promote") {
+            TargetGroupDropdown(
+                groups = groups.filter { it.id != currentGroupId },
+                selectedGroupId = selectedTargetGroupId,
+                onGroupSelected = onTargetGroupChange
+            )
+        }
+    }
+}
+
+@Composable
+fun TargetGroupDropdown(
+    groups: List<com.example.data.Group>,
+    selectedGroupId: Int?,
+    onGroupSelected: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedGroup = groups.find { it.id == selectedGroupId }
+
+    Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Surface(
+            onClick = { expanded = true },
+            border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFFEEF2FF)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    selectedGroup?.name ?: "اضغط لاختيار المجموعة الجديدة",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4F46E5)
+                )
+                Icon(
+                    Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = Color(0xFF4F46E5),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            groups.forEach { group ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(group.name, fontSize = 12.sp) },
+                    onClick = {
+                        onGroupSelected(group.id)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
