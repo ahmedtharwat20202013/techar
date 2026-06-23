@@ -30,6 +30,12 @@ import timber.log.Timber
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Perform security check
+        if (!com.example.utils.SecurityUtils.performSecurityCheck(this)) {
+            finishAffinity()
+            return
+        }
+
         // Set the global default JVM TimeZone to Egypt/Cairo
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Africa/Cairo"))
         super.onCreate(savedInstanceState)

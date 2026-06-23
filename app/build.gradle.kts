@@ -38,12 +38,15 @@ android {
 
   buildTypes {
     release {
+      buildConfigField("String", "BACKEND_URL", "\"https://ais-pre-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app\"")
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
+      buildConfigField("String", "BACKEND_URL", "\"https://ais-dev-4o74uqo3764j7n42vf3hop-630524974552.europe-west2.run.app\"")
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
