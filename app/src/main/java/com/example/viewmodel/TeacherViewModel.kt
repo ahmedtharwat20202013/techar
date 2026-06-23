@@ -531,15 +531,24 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
             if (existing == null) {
                 val monthYear = extractMonthYearFromDate(normalizedDate)
                 val createdAt = DateUtils.formatStandard("yyyy-MM-dd'T'HH:mm:ss'Z'")
-                repository.insertSession(
-                    Session(
-                        groupId = groupId,
-                        date = normalizedDate,
-                        time = time,
-                        monthYear = monthYear,
-                        createdAt = createdAt
-                    )
+                val newSessionObj = Session(
+                    groupId = groupId,
+                    date = normalizedDate,
+                    time = time,
+                    monthYear = monthYear,
+                    createdAt = createdAt
                 )
+                val newSessionId = repository.insertSession(newSessionObj)
+                
+                // Fetch group and schedule notification
+                val group = repository.getGroupById(groupId)
+                if (group != null) {
+                    com.example.utils.NotificationScheduler.scheduleSessionAlarm(
+                        application,
+                        newSessionObj.copy(id = newSessionId.toInt()),
+                        group.name
+                    )
+                }
             }
         }
     }
@@ -562,15 +571,24 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         val arabicTime = formatCurrentTimeArabic()
         val monthYear = extractMonthYearFromDate(normalizedDate)
         val createdAt = DateUtils.formatStandard("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        val newSessionId = repository.insertSession(
-            Session(
-                groupId = groupId,
-                date = normalizedDate,
-                time = arabicTime,
-                monthYear = monthYear,
-                createdAt = createdAt
-            )
+        val newSessionObj = Session(
+            groupId = groupId,
+            date = normalizedDate,
+            time = arabicTime,
+            monthYear = monthYear,
+            createdAt = createdAt
         )
+        val newSessionId = repository.insertSession(newSessionObj)
+        
+        // Fetch group and schedule notification
+        val group = repository.getGroupById(groupId)
+        if (group != null) {
+            com.example.utils.NotificationScheduler.scheduleSessionAlarm(
+                application,
+                newSessionObj.copy(id = newSessionId.toInt()),
+                group.name
+            )
+        }
         return newSessionId.toInt()
     }
 
@@ -620,6 +638,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     fun deleteSession(session: Session) {
         viewModelScope.launch {
             repository.deleteSession(session)
+            com.example.utils.NotificationScheduler.cancelSessionAlarm(application, session.id)
         }
     }
 

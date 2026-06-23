@@ -35,6 +35,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Request notification permission for Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val permissionCheck = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+            if (permissionCheck != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         // Plant Timber debug tree for logging
         if (Timber.forest().isEmpty()) {
             Timber.plant(Timber.DebugTree())
