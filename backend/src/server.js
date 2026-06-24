@@ -1342,6 +1342,95 @@ app.post('/api/license/validate', validateLimiter, async (req, res) => {
 });
 
 
+/**
+ * 5. Endpoint: Custom Single Validate/Activate Endpoint to match 'kay' architecture
+ * Expects POST /api/validate with { license_key, device_id, product_id }
+ */
+app.post('/api/validate', async (req, res) => {
+    const { license_key, device_id, product_id } = req.body;
+    
+    if (!license_key || !device_id) {
+        return res.status(400).json({
+            success: false,
+            message: 'الحقول المطلوبة (رمز التفعيل، معرف الجهاز) مفقودة.'
+        });
+    }
+    
+    const cleanKey = license_key.trim().toUpperCase();
+    const cleanDevice = device_id.trim();
+    
+    try {
+        const license = await findLicenseByRawKey(cleanKey);
+        if (!license) {
+            return res.status(404).json({
+                success: false,
+                message: 'رمز التفعيل المدخل غير صحيح. يرجى التأكد وإعادة المحاولة.'
+            });
+        }
+        
+        // Expiration check
+        if (license.expires_at && new Date(license.expires_at) < new Date()) {
+            return res.status(401).json({
+                success: false,
+                message: 'رمز التفعيل منتهي الصلاحية.'
+            });
+        }
+        
+        if (license.is_used) {
+            if (license.device_id === cleanDevice || license.device_fingerprint === cleanDevice) {
+                // Same device: allow and return success
+                await db.query(`
+                    UPDATE licenses
+                    SET last_check = CURRENT_TIMESTAMP
+                    WHERE license_key = $1
+                `, [license.license_key]);
+                
+                return res.json({
+                    success: true,
+                    message: 'تم تفعيل الرخصة بنجاح',
+                    expires_at: license.expires_at ? new Date(license.expires_at).getTime() : null,
+                    user_name: license.user_name || 'مستخدم مفعل'
+                });
+            } else {
+                // Different device: reject
+                return res.status(403).json({
+                    success: false,
+                    message: 'عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز.'
+                });
+            }
+        }
+        
+        // Unused clean license -> Activate
+        const token = 'valid';
+        await db.query(`
+            UPDATE licenses
+            SET is_used = TRUE,
+                device_id = $1,
+                device_fingerprint = $1,
+                activation_token = $2,
+                activated_at = CURRENT_TIMESTAMP,
+                last_check = CURRENT_TIMESTAMP,
+                current_activations = current_activations + 1
+            WHERE license_key = $3
+        `, [cleanDevice, token, license.license_key]);
+        
+        return res.json({
+            success: true,
+            message: 'تم التفعيل بنجاح',
+            expires_at: license.expires_at ? new Date(license.expires_at).getTime() : null,
+            user_name: license.user_name || 'أحمد ثروت'
+        });
+        
+    } catch (error) {
+        console.error('License validate/activate error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'خطأ داخلي بالخادم أثناء معالجة الطلب.'
+        });
+    }
+});
+
+
 // Start server listener
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

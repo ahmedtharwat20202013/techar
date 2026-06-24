@@ -39,20 +39,7 @@ object LicenseManager {
             null
         }
 
-        // Apply certificate pinning only in production (HTTPS) and not on local development hosts
-        if (BACKEND_URL.startsWith("https://") && hostName != null &&
-            !hostName.contains("localhost") && !hostName.contains("127.0.0.1") && !hostName.contains("10.0.2.2")) {
-            
-            val pinner = CertificatePinner.Builder()
-                .add(hostName, "sha256/hxq4AlA9QDk8WfP7U8BZsM33XN976uttHPv6tczMTbY=") // GTS Root R1
-                .add(hostName, "sha256/Vfd95Yw6MXJuYf9NysS07p2C8ykY2pNo1VUgqTXxhAn=") // GTS Root R2
-                .add(hostName, "sha256/C5+T0K6CGIC1n9gpa9pUJWm93TyYcOB9gkgP1NFqpUo=") // ISRG Root X1 (Let's Encrypt)
-                .add(hostName, "sha256/diulGfS57pI9yU9FTho8F0J5G9D7Y8T9pUo=")         // ISRG Root X2
-                .add(hostName, "sha256/jQ3ytSECW7WkyZ5Tkxb0XbB25avSFP3ZfkfN3G9G9Y8=") // Let's Encrypt R3
-                .add(hostName, "sha256/z7S6gscCwqYogOfOStgA80G97z55gttHPv6tczMTbY=") // GTS Intermediate CA 1C3
-                .build()
-            builder.certificatePinner(pinner)
-        }
+        // Standard SSL system trust store handles validation for run.app (HTTPS)
 
         builder.build()
     }
