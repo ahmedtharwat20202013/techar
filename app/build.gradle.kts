@@ -38,17 +38,12 @@ android {
 
   buildTypes {
     release {
-      // قم بتحديث هذا الرابط إلى رابط الإنتاج والمشاركة الحالي الخاص بك
-      buildConfigField("String", "BACKEND_URL", "\"https://kay12.up.railway.app\"")
       isCrunchPngs = false
-      isMinifyEnabled = true
-      isShrinkResources = true
+      isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      // قم بتحديث هذا الرابط إلى رابط التطوير الحالي الخاص بك
-      buildConfigField("String", "BACKEND_URL", "\"https://kay12.up.railway.app\"")
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
@@ -106,7 +101,6 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
-  implementation(libs.androidx.security.crypto)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

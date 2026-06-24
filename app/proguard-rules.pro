@@ -24,16 +24,6 @@
 -keep class com.example.data.* { *; }
 -keepclassmembers class com.example.data.* { *; }
 
-# Keep license manager classes
--keep class com.example.utils.LicenseManager { *; }
--keep class com.example.utils.SecurityUtils { *; }
-
 # Remove logs
 -assumenosideeffects class android.util.Log { *; }
--assumenosideeffects class timber.log.Timber {
-    public static *** v(...);
-    public static *** d(...);
-    public static *** i(...);
-    public static *** w(...);
-    public static *** e(...);
-}
+-assumenosideeffects class timber.log.Timber { *; }

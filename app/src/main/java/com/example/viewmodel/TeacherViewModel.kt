@@ -104,7 +104,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
     val activeStudents = combine(students, enrollments, currentAcademicYear) { stds, enrs, currentYear ->
         val yId = currentYear?.id ?: 1
         val activeStudentIds = enrs.filter { it.academicYearId == yId && it.status == "active" }.map { it.studentId }.toSet()
-        stds.filter { it.id in activeStudentIds && (it.status == "active" || it.status.isEmpty()) && !it.isDropped && it.isActive && it.deletedAt == null }
+        stds.filter { it.id in activeStudentIds && (it.status == "active" || it.status.isEmpty()) && it.isActive && it.deletedAt == null }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val graduatedStudents = students.map { stds ->
@@ -148,7 +148,6 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         var totalDebt = 0.0
 
         stds.forEach { student ->
-            if (student.isDropped) return@forEach
             val enrollment = activeEnrollments[student.id] ?: return@forEach
             val pay = studentPayments[student.id]
             if (pay != null && pay.isPaid) {
@@ -772,26 +771,6 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         }
     }
 
-    fun addPartialPayment(studentId: Int, month: String, amountPaid: Double, amountDue: Double, isPaid: Boolean, notes: String?) {
-        viewModelScope.launch {
-            val dbMonth = toYearMonth(month)
-            val paidAt = if (amountPaid > 0.0) System.currentTimeMillis() else null
-            val paymentDate = if (amountPaid > 0.0) DateUtils.formatStandard("yyyy-MM-dd") else null
-            val paymentTime = if (amountPaid > 0.0) DateUtils.formatStandard("HH:mm") else null
-            repository.savePartialPayment(
-                studentId = studentId,
-                month = dbMonth,
-                amountPaid = amountPaid,
-                amountDue = amountDue,
-                isPaid = isPaid,
-                paymentDate = paymentDate,
-                paymentTime = paymentTime,
-                paidAt = paidAt,
-                receiptString = notes
-            )
-        }
-    }
-
     fun updatePayment(payment: Payment) {
         viewModelScope.launch {
             val dbPayment = payment.copy(month = toYearMonth(payment.month))
@@ -999,14 +978,10 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                 
                 repository.updateStudent(
                     student.copy(
-                        status = "dropped",
                         isDropped = true,
                         droppedAt = System.currentTimeMillis()
                     )
                 )
-                if (currentEnrollment != null) {
-                    repository.updateEnrollment(currentEnrollment.copy(status = "dropped"))
-                }
                 
                 _notification.emit("تم تسجيل انقطاع الطالب وحفظ بياناته في الأرشيف")
                 onComplete()

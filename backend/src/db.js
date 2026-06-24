@@ -1,26 +1,15 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-    console.error('[FATAL] DATABASE_URL environment variable is required');
-    process.exit(1);
-}
-
-const isProduction = process.env.NODE_ENV === 'production';
-
-// Neon PostgreSQL specific configuration
+// Initialize the database connection pool using environment variables
 const pool = new Pool({
-    connectionString,
-    max: 20,
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/teacher_assistant',
+    max: 20, // Max concurrent connections in pool
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    ssl: (connectionString.includes('neon.tech') || isProduction) ? {
-        rejectUnauthorized: false // Set to false to allow serverless driver certificates comfortably
-    } : (connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : false)
+    connectionTimeoutMillis: 2000,
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err, client) => {
     console.error('Unexpected error on idle database client', err);
 });
 
@@ -48,5 +37,6 @@ module.exports = {
             client.release();
         }
     },
+    
     closePool: () => pool.end()
 };
