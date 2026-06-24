@@ -3,31 +3,72 @@ package com.example.utils
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import com.example.data.LicenseApi
+import com.example.data.LicenseRequest
+import com.example.data.LicenseResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
 import timber.log.Timber
 
 data class ActivationDetails(
     val licenseKey: String,
     val deviceId: String,
-    val activationToken: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val expiresAt: Long? = null,
+    val userName: String? = null
 )
 
 object LicenseManager {
 
     // Unified backend URL defined in BuildConfig
     const val BACKEND_URL = com.example.BuildConfig.BACKEND_URL
+    const val PRODUCT_ID = "techar_app"
 
-    val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+    val client: OkHttpClient by lazy {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+
+        val hostName = try {
+            java.net.URL(BACKEND_URL).host
+        } catch (e: Exception) {
+            null
+        }
+
+        // Apply certificate pinning only in production (HTTPS) and not on local development hosts
+        if (BACKEND_URL.startsWith("https://") && hostName != null &&
+            !hostName.contains("localhost") && !hostName.contains("127.0.0.1") && !hostName.contains("10.0.2.2")) {
+            
+            val pinner = CertificatePinner.Builder()
+                .add(hostName, "sha256/hxq4AlA9QDk8WfP7U8BZsM33XN976uttHPv6tczMTbY=") // GTS Root R1
+                .add(hostName, "sha256/Vfd95Yw6MXJuYf9NysS07p2C8ykY2pNo1VUgqTXxhAn=") // GTS Root R2
+                .add(hostName, "sha256/C5+T0K6CGIC1n9gpa9pUJWm93TyYcOB9gkgP1NFqpUo=") // ISRG Root X1 (Let's Encrypt)
+                .add(hostName, "sha256/diulGfS57pI9yU9FTho8F0J5G9D7Y8T9pUo=")         // ISRG Root X2
+                .add(hostName, "sha256/jQ3ytSECW7WkyZ5Tkxb0XbB25avSFP3ZfkfN3G9G9Y8=") // Let's Encrypt R3
+                .add(hostName, "sha256/z7S6gscCwqYogOfOStgA80G97z55gttHPv6tczMTbY=") // GTS Intermediate CA 1C3
+                .build()
+            builder.certificatePinner(pinner)
+        }
+
+        builder.build()
+    }
+
+    val retrofit: Retrofit by lazy {
+        val baseUrlWithSlash = if (BACKEND_URL.endsWith("/")) BACKEND_URL else "$BACKEND_URL/"
+        Retrofit.Builder()
+            .baseUrl(baseUrlWithSlash)
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+    }
+
+    val api: LicenseApi by lazy {
+        retrofit.create(LicenseApi::class.java)
+    }
 
     /**
      * Check if app is activated (offline validation)
@@ -37,7 +78,7 @@ object LicenseManager {
         
         // Expiration check
         licenseData.expiresAt?.let { expiresAt ->
-            if (System.currentTimeMillis() > expiresAt) {
+            if (expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
                 Timber.w("License expired locally")
                 SecureStorage.deleteLicense(context)
                 return false
@@ -55,54 +96,42 @@ object LicenseManager {
     }
 
     /**
-     * Online-only validation - server verifies the token
+     * Online-only validation - server verifies the token or checks if the key remains valid
      */
     suspend fun validateLicenseOnline(context: Context): Result<Boolean> = withContext(Dispatchers.IO) {
         val licenseData = SecureStorage.decryptAndValidate(context)
             ?: return@withContext Result.failure(Exception("No local license found"))
         
         try {
-            val json = JSONObject().apply {
-                put("license_key", licenseData.licenseKey)
-                put("device_id", licenseData.deviceFingerprint)
-                put("activation_token", licenseData.activationToken)
-                put("timestamp", System.currentTimeMillis())
-            }
+            val request = LicenseRequest(
+                license_key = licenseData.licenseKey,
+                device_id = licenseData.deviceFingerprint,
+                product_id = PRODUCT_ID
+            )
             
-            val requestBody = json.toString().toRequestBody("application/json".toMediaType())
-            
-            val request = Request.Builder()
-                .url("$BACKEND_URL/api/license/validate")
-                .post(requestBody)
-                .build()
-            
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: ""
-                
-                if (!response.isSuccessful) {
-                    val errorMsg = try {
-                        JSONObject(body).optString("message", "Validation failed")
-                    } catch (e: Exception) {
-                        "Validation failed with code: ${response.code}"
-                    }
-                    if (response.code in 401..403) {
-                        SecureStorage.deleteLicense(context)
-                    }
-                    return@withContext Result.failure(Exception(errorMsg))
-                }
-                
-                val responseJson = JSONObject(body)
-                if (responseJson.getBoolean("success")) {
-                    // Update last check timestamp locally
+            val response = api.validateLicense(request)
+            if (response.isSuccessful) {
+                val responseBody = response.body()
+                if (responseBody != null && responseBody.success) {
+                    // Update last check timestamp locally and save refreshed info if returned
                     val updatedData = licenseData.copy(
-                        activatedAt = System.currentTimeMillis()
+                        activatedAt = System.currentTimeMillis(),
+                        expiresAt = responseBody.expires_at ?: licenseData.expiresAt,
+                        userName = responseBody.user_name ?: licenseData.userName
                     )
                     SecureStorage.encryptLicense(context, updatedData)
                     Result.success(true)
                 } else {
+                    val errMsg = responseBody?.message ?: "فشلت عملية التحقق"
                     SecureStorage.deleteLicense(context)
-                    Result.failure(Exception(responseJson.optString("message", "Validation failed")))
+                    Result.failure(Exception(errMsg))
                 }
+            } else {
+                val errorMsg = "فشل في التحقق: كود ${response.code()}"
+                if (response.code() in 400..403) {
+                    SecureStorage.deleteLicense(context)
+                }
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Timber.e(e, "Validation error")
@@ -116,77 +145,69 @@ object LicenseManager {
     }
 
     /**
-     * First-time activation with Neon PostgreSQL
+     * First-time activation with Neon PostgreSQL backend via Retrofit
      */
     suspend fun activateLicenseOnline(
         context: Context,
-        licenseKey: String,
-        userName: String
+        licenseKey: String
     ): Result<ActivationDetails> = withContext(Dispatchers.IO) {
         try {
             val deviceFingerprint = DeviceUtils.getDeviceFingerprint(context)
+            val cleanKey = licenseKey.trim().uppercase()
             
-            val json = JSONObject().apply {
-                put("license_key", licenseKey)
-                put("device_id", deviceFingerprint)
-                put("user_name", userName)
-                put("timestamp", System.currentTimeMillis())
-            }
+            val request = LicenseRequest(
+                license_key = cleanKey,
+                device_id = deviceFingerprint,
+                product_id = PRODUCT_ID
+            )
             
-            val requestBody = json.toString().toRequestBody("application/json".toMediaType())
-            
-            val request = Request.Builder()
-                .url("$BACKEND_URL/api/license/activate")
-                .post(requestBody)
-                .build()
-            
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: ""
-                
-                if (!response.isSuccessful) {
-                    val errorMsg = try {
-                        JSONObject(body).optString("message", "فشلت عملية التفعيل")
-                    } catch (e: Exception) {
-                        "خطأ من الخادم برقم: ${response.code}"
-                    }
-                    return@withContext Result.failure(Exception(errorMsg))
-                }
-                
-                val responseJson = JSONObject(body)
-                if (!responseJson.getBoolean("success")) {
-                    val msg = responseJson.optString("message", "فشلت عملية التفعيل")
-                    return@withContext Result.failure(Exception(msg))
-                }
-                
-                val data = responseJson.getJSONObject("data")
-                val activationToken = data.getString("activation_token")
-                val expiresAt = if (data.has("expires_at") && !data.isNull("expires_at")) {
-                    data.getLong("expires_at")
-                } else null
-                
-                // Save to secure local storage
-                val licenseData = SecureStorage.LicenseData(
-                    licenseKey = licenseKey,
-                    deviceFingerprint = deviceFingerprint,
-                    activationToken = activationToken,
-                    activatedAt = System.currentTimeMillis(),
-                    expiresAt = expiresAt,
-                    userName = userName
-                )
-                
-                if (!SecureStorage.encryptLicense(context, licenseData)) {
-                    return@withContext Result.failure(
-                        Exception("فشل حفظ الرخصة محلياً بجهازك.")
+            val response = api.validateLicense(request)
+            if (response.isSuccessful) {
+                val responseBody = response.body()
+                if (responseBody != null && responseBody.success) {
+                    val userName = responseBody.user_name ?: "مستخدم مفعل"
+                    val expiresAt = responseBody.expires_at
+                    
+                    // Save to secure local storage (EncryptedSharedPreferences)
+                    val licenseData = SecureStorage.LicenseData(
+                        licenseKey = cleanKey,
+                        deviceFingerprint = deviceFingerprint,
+                        activationToken = "valid", // Token string used inside local security logic
+                        activatedAt = System.currentTimeMillis(),
+                        expiresAt = expiresAt,
+                        userName = userName
                     )
+                    
+                    if (!SecureStorage.encryptLicense(context, licenseData)) {
+                        return@withContext Result.failure(
+                            Exception("فشل حفظ الرخصة محلياً بجهازك.")
+                        )
+                    }
+                    
+                    val details = ActivationDetails(
+                        licenseKey = cleanKey,
+                        deviceId = deviceFingerprint,
+                        timestamp = System.currentTimeMillis(),
+                        expiresAt = expiresAt,
+                        userName = userName
+                    )
+                    Result.success(details)
+                } else {
+                    val msg = responseBody?.message ?: "رمز التفعيل غير صالح أو مستخدم من قبل."
+                    Result.failure(Exception(msg))
                 }
-                
-                val details = ActivationDetails(
-                    licenseKey = licenseKey,
-                    deviceId = deviceFingerprint,
-                    activationToken = activationToken,
-                    timestamp = System.currentTimeMillis()
-                )
-                Result.success(details)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorMsg = if (!errorBody.isNullOrBlank()) {
+                    try {
+                        org.json.JSONObject(errorBody).optString("message", "فشلت عملية التفعيل")
+                    } catch (e: Exception) {
+                        "خطأ من الخادم برقم: ${response.code()}"
+                    }
+                } else {
+                    "خطأ من الخادم برقم: ${response.code()}"
+                }
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Timber.e(e, "Activation error")

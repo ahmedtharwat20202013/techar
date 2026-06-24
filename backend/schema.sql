@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS admins (
 CREATE TABLE IF NOT EXISTS licenses (
     id SERIAL PRIMARY KEY,
     license_key TEXT NOT NULL UNIQUE,
+    license_key_hash TEXT,
     is_used BOOLEAN DEFAULT FALSE,
     device_id TEXT,
     device_fingerprint TEXT,
@@ -59,5 +60,6 @@ CREATE TABLE IF NOT EXISTS abuse_logs (
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
 CREATE INDEX IF NOT EXISTS idx_licenses_device ON licenses(device_id);
+CREATE INDEX IF NOT EXISTS idx_licenses_hash ON licenses(license_key_hash);
 CREATE INDEX IF NOT EXISTS idx_logs_key ON validation_logs(license_key);
 CREATE INDEX IF NOT EXISTS idx_logs_attempted ON validation_logs(attempted_at);

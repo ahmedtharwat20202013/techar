@@ -9,32 +9,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.utils.LicenseManager
-import timber.log.Timber
-import kotlinx.coroutines.Dispatchers
+import com.example.utils.ActivationDetails
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,9 +34,7 @@ fun ActivationScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var userName by remember { mutableStateOf("") }
     var licenseKey by remember { mutableStateOf("") }
-    
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
@@ -54,7 +42,7 @@ fun ActivationScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212)) // Professional Dark Background requested
+            .background(Color(0xFF0F0F11)) // Rich Dark Background
     ) {
         Column(
             modifier = Modifier
@@ -62,12 +50,11 @@ fun ActivationScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            
-            // ⚠ FIRST TIME ACTIVATION INTERNET REQUIRED WARNING BANNER (TOP DESIGN)
+            // Online Activation Warning Banner
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFE65100)) // Warning orange accent
+                    .background(Color(0xFFE65100))
                     .padding(vertical = 12.dp, horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -84,50 +71,54 @@ fun ActivationScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "⚠ يرجى الاتصال بالإنترنت عند تشغيل التطبيق لأول مرة لتفعيل الرخصة",
+                        text = "يتطلب التفعيل الاتصال بالإنترنت في المرة الأولى للتحقق من الرخصة والعتاد.",
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(64.dp))
 
-            // Brand / Logo Header
+            // Beautiful Identity Logo
             Icon(
                 imageVector = Icons.Default.VpnKey,
-                contentDescription = "Activation System",
+                contentDescription = "Activation logo",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .size(80.dp)
-                    .padding(8.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
+                    .padding(16.dp)
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
-                text = "مساعد المعلم - بوابة التفعيل",
+                text = "مساعد المعلم الذكي",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
 
             Text(
-                text = "حماية فائقة وربط أمني بعتاد الجهاز",
+                text = "يرجى إدخال مفتاح التفعيل لبدء استخدام التطبيق",
                 color = Color.Gray,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp, bottom = 32.dp, start = 24.dp, end = 24.dp)
             )
 
-            // Main Activation Card Frame
+            // Modern Input Form Container
             Card(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .padding(horizontal = 8.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF1E1E1E)
+                    containerColor = Color(0xFF18181C)
                 )
             ) {
                 Column(
@@ -137,64 +128,44 @@ fun ActivationScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "بيانات الترخيص",
+                        text = "رمز الترخيص (License Key)",
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 16.dp),
+                            .padding(bottom = 12.dp),
                         textAlign = TextAlign.Right
                     )
 
-                    // 1. User Name Field
-                    OutlinedTextField(
-                        value = userName,
-                        onValueChange = { userName = it },
-                        label = { Text("اسم المستخدم", color = Color.Gray) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Name",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.DarkGray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                    )
-
-                    // 2. License Key Field
+                    // Text Field with unique testTag
                     OutlinedTextField(
                         value = licenseKey,
                         onValueChange = { licenseKey = it },
-                        label = { Text("رمز التفعيل (License Key)", color = Color.Gray) },
+                        label = { Text("مثال: XXXX-XXXX-XXXX-XXXX", color = Color.DarkGray) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Key,
-                                contentDescription = "License",
+                                contentDescription = "License Icon",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         },
+                        singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.DarkGray,
+                            unfocusedBorderColor = Color(0xFF2C2C35),
                             focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            unfocusedTextColor = Color.White,
+                            focusedContainerColor = Color(0xFF121214),
+                            unfocusedContainerColor = Color(0xFF121214)
                         ),
-                        placeholder = { Text("LIC-XXXX-XXXX-XXXX-XXXX", color = Color.DarkGray) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 24.dp)
+                            .padding(bottom = 20.dp)
+                            .testTag("license_input")
                     )
 
-                    // Error Notification alert
+                    // Feedback messages
                     AnimatedVisibility(
                         visible = errorMessage != null,
                         enter = expandVertically() + fadeIn(),
@@ -203,7 +174,7 @@ fun ActivationScreen(
                         errorMessage?.let { msg ->
                             Surface(
                                 color = MaterialTheme.colorScheme.errorContainer,
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp)
@@ -219,7 +190,6 @@ fun ActivationScreen(
                         }
                     }
 
-                    // Success Notification alert
                     AnimatedVisibility(
                         visible = successMessage != null,
                         enter = expandVertically() + fadeIn(),
@@ -228,7 +198,7 @@ fun ActivationScreen(
                         successMessage?.let { msg ->
                             Surface(
                                 color = Color(0xFF1B5E20),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp)
@@ -244,39 +214,42 @@ fun ActivationScreen(
                         }
                     }
 
-                    // 3. Activation Action Button
+                    // Activation Button with unique testTag
                     Button(
                         onClick = {
-                            if (userName.trim().isEmpty() || licenseKey.trim().isEmpty()) {
-                                errorMessage = "يرجى تعبئة جميع الحقول أولاً لتفعيل رخصتك برمجياً"
+                            val keyToValidate = licenseKey.trim()
+                            if (keyToValidate.isEmpty()) {
+                                errorMessage = "يرجى إدخال مفتاح الترخيص أولاً للمتابعة"
                                 return@Button
                             }
                             errorMessage = null
                             isLoading = true
                             
                             scope.launch {
-                                val res = LicenseManager.activateLicenseOnline(
-                                    context = context,
-                                    licenseKey = licenseKey,
-                                    userName = userName
-                                )
+                                val result = LicenseManager.activateLicenseOnline(context, keyToValidate)
                                 isLoading = false
-                                if (res.isSuccess) {
-                                    successMessage = "تم تفعيل البرنامج بنجاح! جاري تحويلك للرئيسية..."
-                                    // Trigger main view
-                                    kotlinx.coroutines.delay(1500)
+                                if (result.isSuccess) {
+                                    val details = result.getOrNull()
+                                    successMessage = if (details?.userName != null) {
+                                        "مرحباً بك ${details.userName}! تم التفعيل بنجاح."
+                                    } else {
+                                        "تم تفعيل البرنامج بنجاح! جاري تحويلك للرئيسية..."
+                                    }
+                                    delay(1800)
                                     onActivationSuccess()
                                 } else {
-                                    errorMessage = res.exceptionOrNull()?.message ?: "فشل في التحقق"
+                                    errorMessage = result.exceptionOrNull()?.message ?: "رمز التفعيل غير صالح."
                                 }
                             }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(8.dp),
+                            .height(52.dp)
+                            .testTag("activate_button"),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         ),
                         enabled = !isLoading
                     ) {
@@ -288,7 +261,7 @@ fun ActivationScreen(
                             )
                         } else {
                             Text(
-                                text = "تفعيل / تسجيل الدخول",
+                                text = "تفعيل التطبيق",
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -298,12 +271,12 @@ fun ActivationScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // Footer info
+            // Aesthetic security assurance footer
             Text(
-                text = "آمن بنسبة 100% • حماية عتاد SHA-256 • تشفير محلي AES",
-                color = Color.DarkGray,
+                text = "حماية أمنية مشفرة بـ AES-256 وربط عتاد الأجهزة",
+                color = Color.Gray,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 32.dp)

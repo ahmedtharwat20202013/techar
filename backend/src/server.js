@@ -7,11 +7,16 @@ require('dotenv').config();
 const app = express();
 
 const ALLOWED_ORIGINS = [
-    'http://localhost:5173',     // Vite dev server
+    'capacitor://localhost',      // Ionic/Capacitor apps
+    'ionic://localhost',          // Ionic apps
+    'http://localhost',           // Local development
+    'http://localhost:8080',      // Local backend
+    'http://localhost:8100',      // Ionic dev server
+    'http://localhost:5173',      // Vite dev server
     'http://localhost:3000',
-    'https://your-frontend-domain.com',  // Your actual frontend
-    'https://your-admin-panel.com',      // Admin panel if separate
-];
+    process.env.NODE_ENV === 'development' ? 'http://localhost:8100' : null,
+    process.env.FRONTEND_URL,     // Set this in .env
+].filter(Boolean);
 
 app.use(cors({
     origin: function(origin, callback) {
@@ -796,6 +801,7 @@ if (process.env.NODE_ENV === 'production') {
 db.query(`
     CREATE TABLE IF NOT EXISTS licenses (
         license_key TEXT PRIMARY KEY,
+        license_key_hash TEXT,
         is_used BOOLEAN DEFAULT FALSE NOT NULL,
         device_id TEXT,
         device_fingerprint TEXT,
@@ -812,6 +818,7 @@ db.query(`
 `).then(() => {
     // Add any missing columns to licenses if the table already existed
     const alterQueries = [
+        "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS license_key_hash TEXT",
         "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS device_fingerprint TEXT",
         "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_name TEXT",
         "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
@@ -820,6 +827,11 @@ db.query(`
         "ALTER TABLE licenses ADD COLUMN IF NOT EXISTS current_activations INTEGER DEFAULT 0"
     ];
     return Promise.all(alterQueries.map(q => db.query(q).catch(err => console.log('[Licensing] Alter error (can ignore if already exists):', err.message))));
+}).then(() => {
+    // Ensure index on license_key_hash is created
+    return db.query("CREATE INDEX IF NOT EXISTS idx_licenses_hash ON licenses(license_key_hash)").catch(err => {
+        console.error('[Licensing] Error creating hash index:', err.message);
+    });
 }).then(() => {
     // Ensure validation_logs table is created
     return db.query(`
@@ -851,11 +863,12 @@ db.query(`
     if (process.env.NODE_ENV === 'development') {
         const testKeyPlain = '026B6-F8F95-44C92-EAB7E';
         const testKeyEncrypted = encryptLicenseKey(testKeyPlain);
+        const testKeyHash = getLicenseKeyHash(testKeyPlain);
         return db.query(`
-            INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
-            VALUES ($1, FALSE, NULL, NULL, CURRENT_TIMESTAMP)
+            INSERT INTO licenses (license_key, license_key_hash, is_used, device_id, activation_token, created_at)
+            VALUES ($1, $2, FALSE, NULL, NULL, CURRENT_TIMESTAMP)
             ON CONFLICT (license_key) DO NOTHING;
-        `, [testKeyEncrypted]).then(() => {
+        `, [testKeyEncrypted, testKeyHash]).then(() => {
             console.log('[Licensing] Test license seeded (dev only).');
         });
     }
@@ -864,7 +877,15 @@ db.query(`
 });
 
 // Helper: License key encryption/decryption at rest
-const LICENSE_ENCRYPTION_KEY = process.env.LICENSE_ENCRYPTION_KEY || '6d61737465725f6b65795f746561636865725f617373697374616e745f323032'; // fallback 32-byte hex
+const LICENSE_ENCRYPTION_KEY = process.env.LICENSE_ENCRYPTION_KEY;
+if (!LICENSE_ENCRYPTION_KEY) {
+    console.error('[FATAL] LICENSE_ENCRYPTION_KEY environment variable is required');
+    process.exit(1);
+}
+
+function getLicenseKeyHash(rawKey) {
+    return crypto.createHash('sha256').update(rawKey).digest('hex');
+}
 
 function encryptLicenseKey(key, masterKey = LICENSE_ENCRYPTION_KEY) {
     // Deterministic 12-byte IV derived from the key itself for AES-256-GCM database lookups
@@ -895,20 +916,47 @@ function decryptLicenseKey(encrypted, masterKey = LICENSE_ENCRYPTION_KEY) {
 
 // Find matching license row in the database
 async function findLicenseByRawKey(rawKey) {
-    const { rows } = await db.query('SELECT * FROM licenses');
-    for (const row of rows) {
-        const decrypted = decryptLicenseKey(row.license_key);
-        if (decrypted === rawKey) {
+    const hash = getLicenseKeyHash(rawKey);
+    
+    // Fast lookup by hash (indexed query)
+    const { rows } = await db.query(
+        'SELECT * FROM licenses WHERE license_key_hash = $1',
+        [hash]
+    );
+    
+    if (rows.length === 0) {
+        // Fallback: check plaintext or encrypted matching
+        // For security and performance, let's do a fast lookup on license_key
+        const encryptedAttempt = encryptLicenseKey(rawKey);
+        const { rows: plainRows } = await db.query(
+            'SELECT * FROM licenses WHERE license_key = $1 OR license_key = $2',
+            [rawKey, encryptedAttempt]
+        );
+        
+        if (plainRows.length > 0) {
+            // Auto-migrate to encrypted with hash
+            const row = plainRows[0];
+            const encrypted = encryptLicenseKey(rawKey);
+            const newHash = getLicenseKeyHash(rawKey);
+            await db.query(
+                'UPDATE licenses SET license_key = $1, license_key_hash = $2 WHERE license_key = $3',
+                [encrypted, newHash, row.license_key]
+            );
+            row.license_key = encrypted;
+            row.license_key_hash = newHash;
             return row;
         }
-        if (row.license_key === rawKey) {
-            // Auto migrate plaintext key to encrypted at rest
-            const encryptedKey = encryptLicenseKey(rawKey);
-            await db.query('UPDATE licenses SET license_key = $1 WHERE license_key = $2', [encryptedKey, rawKey]);
-            row.license_key = encryptedKey;
-            return row;
-        }
+        
+        return null;
     }
+    
+    // Verify decrypted key matches (security check)
+    const row = rows[0];
+    const decrypted = decryptLicenseKey(row.license_key);
+    if (decrypted === rawKey) {
+        return row;
+    }
+    
     return null;
 }
 
@@ -975,10 +1023,11 @@ app.post('/api/license/generate', async (req, res) => {
         for (let i = 0; i < count; i++) {
             const key = makeRandomLicenseKey();
             const encryptedKey = encryptLicenseKey(key);
+            const hash = getLicenseKeyHash(key);
             await db.query(`
-                INSERT INTO licenses (license_key, is_used, device_id, activation_token, created_at)
-                VALUES ($1, FALSE, NULL, NULL, CURRENT_TIMESTAMP)
-            `, [encryptedKey]);
+                INSERT INTO licenses (license_key, license_key_hash, is_used, device_id, activation_token, created_at)
+                VALUES ($1, $2, FALSE, NULL, NULL, CURRENT_TIMESTAMP)
+            `, [encryptedKey, hash]);
             generated.push(key);
         }
         
