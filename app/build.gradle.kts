@@ -39,7 +39,7 @@ android {
   buildTypes {
     release {
       // قم بتحديث هذا الرابط إلى رابط الإنتاج والمشاركة الحالي الخاص بك
-      buildConfigField("String", "BACKEND_URL", "\"https://ais-pre-gon35hvsf3lhg76hcow72u-630524974552.europe-west2.run.app\"")
+      buildConfigField("String", "BACKEND_URL", "\"https://kay12.up.railway.app\"")
       isCrunchPngs = false
       isMinifyEnabled = true
       isShrinkResources = true
@@ -48,7 +48,7 @@ android {
     }
     debug {
       // قم بتحديث هذا الرابط إلى رابط التطوير الحالي الخاص بك
-      buildConfigField("String", "BACKEND_URL", "\"https://ais-dev-gon35hvsf3lhg76hcow72u-630524974552.europe-west2.run.app\"")
+      buildConfigField("String", "BACKEND_URL", "\"https://kay12.up.railway.app\"")
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }

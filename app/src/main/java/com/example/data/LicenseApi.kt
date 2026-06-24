@@ -18,8 +18,11 @@ data class LicenseRequest(
  */
 data class LicenseResponse(
     val success: Boolean,
+    val valid: Boolean,
+    val error: String?,
     val message: String?,
-    val expires_at: Long? = null,
+    val type: String? = null,
+    val expires_at: String? = null,
     val user_name: String? = null
 )
 

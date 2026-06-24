@@ -83,6 +83,31 @@ object LicenseManager {
     }
 
     /**
+     * Parses ISO-8601 date string to epoch milliseconds.
+     */
+    private fun parseDate(dateStr: String?): Long? {
+        if (dateStr.isNullOrBlank()) return null
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                java.time.Instant.parse(dateStr).toEpochMilli()
+            } else {
+                val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                format.parse(dateStr)?.time
+            }
+        } catch (e: Exception) {
+            try {
+                val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                format.parse(dateStr)?.time
+            } catch (e2: Exception) {
+                Timber.e(e2, "Failed to parse date: $dateStr")
+                null
+            }
+        }
+    }
+
+    /**
      * Online-only validation - server verifies the token or checks if the key remains valid
      */
     suspend fun validateLicenseOnline(context: Context): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -99,11 +124,12 @@ object LicenseManager {
             val response = api.validateLicense(request)
             if (response.isSuccessful) {
                 val responseBody = response.body()
-                if (responseBody != null && responseBody.success) {
+                if (responseBody != null && responseBody.valid) {
+                    val parsedExpiresAt = parseDate(responseBody.expires_at)
                     // Update last check timestamp locally and save refreshed info if returned
                     val updatedData = licenseData.copy(
                         activatedAt = System.currentTimeMillis(),
-                        expiresAt = responseBody.expires_at ?: licenseData.expiresAt,
+                        expiresAt = parsedExpiresAt ?: licenseData.expiresAt,
                         userName = responseBody.user_name ?: licenseData.userName
                     )
                     SecureStorage.encryptLicense(context, updatedData)
@@ -151,9 +177,9 @@ object LicenseManager {
             val response = api.validateLicense(request)
             if (response.isSuccessful) {
                 val responseBody = response.body()
-                if (responseBody != null && responseBody.success) {
+                if (responseBody != null && responseBody.valid) {
                     val userName = responseBody.user_name ?: "مستخدم مفعل"
-                    val expiresAt = responseBody.expires_at
+                    val parsedExpiresAt = parseDate(responseBody.expires_at)
                     
                     // Save to secure local storage (EncryptedSharedPreferences)
                     val licenseData = SecureStorage.LicenseData(
@@ -161,7 +187,7 @@ object LicenseManager {
                         deviceFingerprint = deviceFingerprint,
                         activationToken = "valid", // Token string used inside local security logic
                         activatedAt = System.currentTimeMillis(),
-                        expiresAt = expiresAt,
+                        expiresAt = parsedExpiresAt,
                         userName = userName
                     )
                     
@@ -175,24 +201,47 @@ object LicenseManager {
                         licenseKey = cleanKey,
                         deviceId = deviceFingerprint,
                         timestamp = System.currentTimeMillis(),
-                        expiresAt = expiresAt,
+                        expiresAt = parsedExpiresAt,
                         userName = userName
                     )
                     Result.success(details)
                 } else {
-                    val msg = responseBody?.message ?: "رمز التفعيل غير صالح أو مستخدم من قبل."
+                    val serverErr = responseBody?.error
+                    val msg = when (serverErr) {
+                        "KEY_NOT_FOUND" -> "رمز التفعيل غير صحيح. يرجى التأكد وإعادة المحاولة."
+                        "KEY_ALREADY_USED" -> "عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز."
+                        "KEY_EXPIRED" -> "رمز التفعيل هذا منتهي الصلاحية."
+                        else -> responseBody?.message ?: "رمز التفعيل غير صالح أو مستخدم من قبل."
+                    }
                     Result.failure(Exception(msg))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
-                val errorMsg = if (!errorBody.isNullOrBlank()) {
+                var serverMsg: String? = null
+                var serverErrCode: String? = null
+                if (!errorBody.isNullOrBlank()) {
                     try {
-                        org.json.JSONObject(errorBody).optString("message", "فشلت عملية التفعيل")
+                        val jsonObj = org.json.JSONObject(errorBody)
+                        serverMsg = jsonObj.optString("message", null)
+                        serverErrCode = jsonObj.optString("error", null)
                     } catch (e: Exception) {
-                        "خطأ من الخادم برقم: ${response.code()}"
+                        // ignore
                     }
-                } else {
-                    "خطأ من الخادم برقم: ${response.code()}"
+                }
+
+                val errorMsg = when {
+                    serverErrCode == "KEY_NOT_FOUND" || response.code() == 404 -> 
+                        "رمز التفعيل غير صحيح. يرجى التأكد وإعادة المحاولة."
+                    serverErrCode == "KEY_ALREADY_USED" || response.code() == 403 -> 
+                        "عفواً، رمز التفعيل هذا مستخدم بالفعل على جهاز آخر ولا يمكن تفعيله على أكثر من جهاز."
+                    serverErrCode == "KEY_EXPIRED" -> 
+                        "رمز التفعيل هذا منتهي الصلاحية."
+                    response.code() == 429 -> 
+                        "لقد تجاوزت الحد المسموح به من المحاولات (طلب زائد). يرجى الانتظار والمحاولة لاحقاً."
+                    response.code() >= 500 -> 
+                        "خطأ داخلي بالخادم (كود ${response.code()}) أثناء معالجة طلبك. يرجى إعادة المحاولة لاحقاً."
+                    else -> 
+                        serverMsg ?: "فشلت عملية التفعيل: كود ${response.code()}"
                 }
                 Result.failure(Exception(errorMsg))
             }
