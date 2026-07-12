@@ -24,12 +24,12 @@ object NotificationScheduler {
         }
 
         val alarmCal = sessionCal.clone() as Calendar
-        alarmCal.add(Calendar.MINUTE, -15)
+        alarmCal.add(Calendar.MINUTE, -5)
 
         val now = Calendar.getInstance() // Defaults to device timezone
         if (alarmCal.before(now)) {
             if (sessionCal.after(now)) {
-                // Session is in the future but less than 15 minutes from now. Fire warning alarm in 2 seconds.
+                // Session is in the future but less than 5 minutes from now. Fire warning alarm in 2 seconds.
                 alarmCal.timeInMillis = now.timeInMillis + 2000
                 Timber.i("Alarm time was in the past, but session is in the future. Scheduling in 2 seconds.")
             } else {
@@ -140,9 +140,9 @@ object NotificationScheduler {
     fun getAlarmCalendar(dateStr: String, timeStr: String): Calendar? {
         val sessionCal = parseSessionDateTime(dateStr, timeStr) ?: return null
         
-        // Subtract 15 minutes for the warning alarm
+        // Subtract 5 minutes for the warning alarm
         val alarmCal = sessionCal.clone() as Calendar
-        alarmCal.add(Calendar.MINUTE, -15)
+        alarmCal.add(Calendar.MINUTE, -5)
         return alarmCal
     }
 

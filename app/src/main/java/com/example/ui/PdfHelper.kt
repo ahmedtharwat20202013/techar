@@ -159,6 +159,8 @@ object PdfHelper {
                     val pdfDocument = android.graphics.pdf.PdfDocument()
                     
                     // --- DATA CALCULATIONS ---
+                    val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                    val academicYearDash = "$currentYear-${currentYear + 1}"
                     val defaultDate = DateUtils.formatStandard("yyyy-MM-dd")
                     val effectiveJoinDate = if (!enrollmentDate.isNullOrBlank()) enrollmentDate else student.joinDate
                     val normJoinDate = effectiveJoinDate.isNotBlank().let { if (it) effectiveJoinDate.replace("-", "/") else defaultDate }
@@ -386,7 +388,7 @@ object PdfHelper {
                     textPaint.textSize = 11f
                     
                     // Group long name handling
-                    val groupText = "الصف والمسار: ${group?.name ?: "غير محدد"}"
+                    val groupText = "الصف والمسار: ${group?.name ?: "غير محدد"} ($academicYearDash)"
                     val groupDescPaint = android.graphics.Paint().apply {
                         color = colorWhite
                         isAntiAlias = true
@@ -406,7 +408,6 @@ object PdfHelper {
                     canvas1.drawText("هاتف ولي الأمر: ${student.parentPhone}", 680f, 275f, textPaint)
                     
                     // Enrolled Dynamic Academic Year
-                    val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
                     val academicYear = "$currentYear / ${currentYear + 1}"
                     canvas1.drawText("الفترة الدراسية: العام الدراسي $academicYear", 680f, 310f, textPaint)
                     
@@ -559,7 +560,7 @@ object PdfHelper {
                     }
                     headerNamePaint.textAlign = android.graphics.Paint.Align.LEFT
                     canvas2.drawText(headerNameText, 50f, 62f, headerNamePaint)
-                    canvas2.drawText("الصف: ${group?.name ?: "-"}", 50f, 82f, headerNamePaint)
+                    canvas2.drawText("الصف: ${group?.name ?: "-"} ($academicYearDash)", 50f, 82f, headerNamePaint)
                     
                     // 2. Twin Stats Cards at Top (y: 120f to 185f)
                     val drawPortraitCard: (Float, Float, String, String, Int) -> Unit = { l, r, label, value, bottomColor ->
@@ -674,7 +675,7 @@ object PdfHelper {
                                 textPaint.isFakeBoldText = false
                                 textPaint.textAlign = android.graphics.Paint.Align.LEFT
                                 canvas2.drawText(headerNameText, 50f, 62f, headerNamePaint)
-                                canvas2.drawText("الصف: ${group?.name ?: "-"}", 50f, 82f, headerNamePaint)
+                                canvas2.drawText("الصف: ${group?.name ?: "-"} ($academicYearDash)", 50f, 82f, headerNamePaint)
                                 
                                 yPos2 = 130f
                                 
@@ -836,12 +837,13 @@ object PdfHelper {
                     textPaint.isFakeBoldText = true
                     textPaint.textAlign = android.graphics.Paint.Align.CENTER
                     
-                    // الشهر | المطلوب | المدفوع | المتبقي | الحالة
-                    canvas3.drawText("الشهر الدراسي", 502.5f, yPos3 + 18f, textPaint)
-                    canvas3.drawText("المطلوب المالي", 390f, yPos3 + 18f, textPaint)
-                    canvas3.drawText("المدفوع الفعلي", 290f, yPos3 + 18f, textPaint)
-                    canvas3.drawText("المتبقي", 195f, yPos3 + 18f, textPaint)
-                    canvas3.drawText("الحالة", 90f, yPos3 + 18f, textPaint)
+                    // الشهر | المطلوب | المدفوع | المتبقي | تاريخ الدفع | الحالة
+                    canvas3.drawText("الشهر الدراسي", 515f, yPos3 + 18f, textPaint)
+                    canvas3.drawText("المطلوب المالي", 430f, yPos3 + 18f, textPaint)
+                    canvas3.drawText("المدفوع الفعلي", 345f, yPos3 + 18f, textPaint)
+                    canvas3.drawText("المتبقي", 260f, yPos3 + 18f, textPaint)
+                    canvas3.drawText("تاريخ الدفع", 165f, yPos3 + 18f, textPaint)
+                    canvas3.drawText("الحالة", 75f, yPos3 + 18f, textPaint)
                     
                     yPos3 += 28f
                     
@@ -897,11 +899,12 @@ object PdfHelper {
                                 textPaint.isFakeBoldText = true
                                 textPaint.textAlign = android.graphics.Paint.Align.CENTER
                                 
-                                canvas3.drawText("الشهر الدراسي", 502.5f, yPos3 + 18f, textPaint)
-                                canvas3.drawText("المطلوب المالي", 390f, yPos3 + 18f, textPaint)
-                                canvas3.drawText("المدفوع الفعلي", 290f, yPos3 + 18f, textPaint)
-                                canvas3.drawText("المتبقي", 195f, yPos3 + 18f, textPaint)
-                                canvas3.drawText("الحالة", 90f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("الشهر الدراسي", 515f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("المطلوب المالي", 430f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("المدفوع الفعلي", 345f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("المتبقي", 260f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("تاريخ الدفع", 165f, yPos3 + 18f, textPaint)
+                                canvas3.drawText("الحالة", 75f, yPos3 + 18f, textPaint)
                                 
                                 yPos3 += 28f
                             }
@@ -921,13 +924,16 @@ object PdfHelper {
                             textPaint.textSize = 10f
                             
                             // Write cells
-                            canvas3.drawText(p.month, 502.5f, yPos3 + 17f, textPaint)
-                            canvas3.drawText("${req.toInt()} ج.م", 390f, yPos3 + 17f, textPaint)
-                            canvas3.drawText("${p.amountPaid.toInt()} ج.م", 290f, yPos3 + 17f, textPaint)
+                            canvas3.drawText(p.month, 515f, yPos3 + 17f, textPaint)
+                            canvas3.drawText("${req.toInt()} ج.م", 430f, yPos3 + 17f, textPaint)
+                            canvas3.drawText("${p.amountPaid.toInt()} ج.م", 345f, yPos3 + 17f, textPaint)
                             
                             textPaint.color = if (rem > 0f) colorRed else colorDarkGray
                             textPaint.isFakeBoldText = rem > 0f
-                            canvas3.drawText("${rem.toInt()} ج.م", 195f, yPos3 + 17f, textPaint)
+                            canvas3.drawText("${rem.toInt()} ج.م", 260f, yPos3 + 17f, textPaint)
+                            
+                            val dateDisplay = p.paymentDate?.let { com.example.data.DateUtils.formatDateForDisplay(it) } ?: "-"
+                            canvas3.drawText(dateDisplay, 165f, yPos3 + 17f, textPaint)
                             
                             val statusText: String
                             val statusC: Int
@@ -944,7 +950,7 @@ object PdfHelper {
                             
                             textPaint.color = statusC
                             textPaint.isFakeBoldText = true
-                            canvas3.drawText(statusText, 90f, yPos3 + 17f, textPaint)
+                            canvas3.drawText(statusText, 75f, yPos3 + 17f, textPaint)
                             
                             yPos3 += 25f
                         }

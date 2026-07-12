@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1686,6 +1688,11 @@ fun GroupDetailScreen(
     var selectedStudentToEdit by remember { mutableStateOf<Student?>(null) }
     var selectedStudentToDelete by remember { mutableStateOf<Student?>(null) }
 
+    val pinStorage = remember { PinStorage(context) }
+    var showVerifyPinToDeleteGroup by remember { mutableStateOf(false) }
+    var showVerifyPinToDeleteStudent by remember { mutableStateOf<Student?>(null) }
+    var showVerifyPinToMoveRows by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TeacherAppBar(
@@ -1777,7 +1784,13 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
-                        onClick = { showPromoteGroupDialog = true },
+                        onClick = {
+                            if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                                showVerifyPinToMoveRows = true
+                            } else {
+                                showPromoteGroupDialog = true
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen.copy(alpha = 0.15f)),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -2203,8 +2216,13 @@ fun GroupDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteStudent(student)
+                        val currentStudent = student
                         selectedStudentToDelete = null
+                        if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                            showVerifyPinToDeleteStudent = currentStudent
+                        } else {
+                            viewModel.deleteStudent(currentStudent)
+                        }
                     }
                 ) {
                     Text("نعم، احذف الطالب بكل سجلاته", color = DangerRed, fontWeight = FontWeight.Bold)
@@ -2238,9 +2256,13 @@ fun GroupDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        group?.let { viewModel.deleteGroup(it) }
                         showDeleteGroupPrompt = false
-                        onBack()
+                        if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                            showVerifyPinToDeleteGroup = true
+                        } else {
+                            group?.let { viewModel.deleteGroup(it) }
+                            onBack()
+                        }
                     }
                 ) {
                     Text("حذف نهائي", color = DangerRed, fontWeight = FontWeight.Bold)
@@ -2250,6 +2272,47 @@ fun GroupDetailScreen(
                 TextButton(onClick = { showDeleteGroupPrompt = false }) {
                     Text("إلغاء")
                 }
+            }
+        )
+    }
+
+    if (showVerifyPinToDeleteGroup) {
+        ConfirmPinDialog(
+            pinStorage = pinStorage,
+            title = "تأكيد حذف المجموعة",
+            subtitle = "أدخل رقم PIN لإتمام عملية حذف المجموعة وكافة السجلات المرتبطة بها",
+            onDismissRequest = { showVerifyPinToDeleteGroup = false },
+            onConfirmed = {
+                showVerifyPinToDeleteGroup = false
+                group?.let { viewModel.deleteGroup(it) }
+                onBack()
+            }
+        )
+    }
+
+    if (showVerifyPinToDeleteStudent != null) {
+        val studentToDel = showVerifyPinToDeleteStudent!!
+        ConfirmPinDialog(
+            pinStorage = pinStorage,
+            title = "تأكيد حذف الطالب",
+            subtitle = "أدخل رقم PIN لإتمام عملية حذف الطالب \"${studentToDel.name}\" وكافة سجلاته",
+            onDismissRequest = { showVerifyPinToDeleteStudent = null },
+            onConfirmed = {
+                showVerifyPinToDeleteStudent = null
+                viewModel.deleteStudent(studentToDel)
+            }
+        )
+    }
+
+    if (showVerifyPinToMoveRows) {
+        ConfirmPinDialog(
+            pinStorage = pinStorage,
+            title = "التحقق من رقم PIN",
+            subtitle = "يرجى إدخال رقم PIN لتتمكن من ترحيل/نقل طلاب هذه المجموعة",
+            onDismissRequest = { showVerifyPinToMoveRows = false },
+            onConfirmed = {
+                showVerifyPinToMoveRows = false
+                showPromoteGroupDialog = true
             }
         )
     }
@@ -4217,7 +4280,8 @@ fun StudentProfileScreen(
                                             val selEnrollment = studentEnrollments.find { it.groupId == pdfGroupId }
                                             val selYear = academicYears.find { it.id == (selEnrollment?.academicYearId ?: 0) }
                                             val labelText = if (selYear != null) {
-                                                "${selGroup?.name ?: "مجموعة غير معروفة"} (${selYear.yearLabel})"
+                                                val cy = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                                                "${selGroup?.name ?: "مجموعة غير معروفة"} ($cy-${cy + 1})"
                                             } else {
                                                 selGroup?.name ?: "مجموعة غير معروفة"
                                             }
@@ -4237,7 +4301,10 @@ fun StudentProfileScreen(
                                                 val g = groups.find { it.id == enr.groupId }
                                                 val year = academicYears.find { it.id == enr.academicYearId }
                                                 DropdownMenuItem(
-                                                    text = { Text("${g?.name ?: "غير معروف"} - ${year?.yearLabel ?: ""}") },
+                                                    text = { run {
+                                                         val cy = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                                                         Text("${g?.name ?: "غير معروف"} ($cy-${cy + 1})")
+                                                     } },
                                                     onClick = {
                                                         pdfGroupId = enr.groupId
                                                         expandedPdfEnrollment = false
@@ -4713,11 +4780,6 @@ fun StudentProfileScreen(
     // --- DIALOG: PAYMENTS ---
     if (showPaymentDialog) {
         Dialog(onDismissRequest = { showPaymentDialog = false }) {
-            var selectedMonth by remember { mutableStateOf(viewModel.getCurrentMonthYearArabic()) }
-            var amountString by remember { mutableStateOf("200") }
-            var isPaid by remember { mutableStateOf(true) }
-            var monthDropdownExpanded by remember { mutableStateOf(false) }
-
             val currentYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
             val arabicMonthsList = remember {
                 listOf(
@@ -4725,14 +4787,81 @@ fun StudentProfileScreen(
                     "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
                 )
             }
-            val monthsSelectionList = remember(currentYear) {
+            val monthsSelectionList = remember(currentYear, group) {
                 val list = mutableListOf<String>()
                 for (y in (currentYear - 1)..(currentYear + 1)) {
                     for (m in arabicMonthsList) {
                         list.add("$m $y")
                     }
                 }
-                list
+                val groupStartCode = group?.startDate?.let { viewModel.toYearMonth(it) }
+                if (groupStartCode != null && groupStartCode.isNotBlank()) {
+                    list.filter { viewModel.toYearMonth(it) >= groupStartCode }
+                } else {
+                    list
+                }
+            }
+
+            val initialMonth = remember(monthsSelectionList) {
+                val currentArabic = viewModel.getCurrentMonthYearArabic()
+                if (monthsSelectionList.contains(currentArabic)) {
+                    currentArabic
+                } else {
+                    monthsSelectionList.firstOrNull() ?: currentArabic
+                }
+            }
+            var selectedMonth by remember { mutableStateOf(initialMonth) }
+            var amountString by remember { mutableStateOf("200") }
+            var isPaid by remember { mutableStateOf(true) }
+            var monthDropdownExpanded by remember { mutableStateOf(false) }
+            var showBeforeStartDateWarning by remember { mutableStateOf(false) }
+
+            if (showBeforeStartDateWarning) {
+                AlertDialog(
+                    onDismissRequest = { showBeforeStartDateWarning = false },
+                    icon = {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = DangerRed,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    },
+                    title = {
+                        Text(
+                            text = "تنبيه: تاريخ الدفع",
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "الشهر المختار ($selectedMonth) يسبق تاريخ بدء المجموعة (${group?.startDate ?: ""}). هل أنت متأكد من رغبتك في تسجيل الدفع لهذا الطالب؟",
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showBeforeStartDateWarning = false
+                                viewModel.addPayment(studentId, selectedMonth, amountString.toDoubleOrNull() ?: 200.0, isPaid)
+                                Toast.makeText(context, "تم حفظ الدفعات بنجاح", Toast.LENGTH_SHORT).show()
+                                showPaymentDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                        ) {
+                            Text("نعم، متأكد")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showBeforeStartDateWarning = false }) {
+                            Text("إلغاء", color = Color.Gray)
+                        }
+                    }
+                )
             }
 
             Card(
@@ -4821,9 +4950,15 @@ fun StudentProfileScreen(
                         Button(
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                viewModel.addPayment(studentId, selectedMonth, amountString.toDoubleOrNull() ?: 200.0, isPaid)
-                                Toast.makeText(context, "تم حفظ الدفعات بنجاح", Toast.LENGTH_SHORT).show()
-                                showPaymentDialog = false
+                                val groupStartCode = group?.startDate?.let { viewModel.toYearMonth(it) }
+                                val selectedMonthCode = viewModel.toYearMonth(selectedMonth)
+                                if (groupStartCode != null && groupStartCode.isNotBlank() && selectedMonthCode < groupStartCode) {
+                                    showBeforeStartDateWarning = true
+                                } else {
+                                    viewModel.addPayment(studentId, selectedMonth, amountString.toDoubleOrNull() ?: 200.0, isPaid)
+                                    Toast.makeText(context, "تم حفظ الدفعات بنجاح", Toast.LENGTH_SHORT).show()
+                                    showPaymentDialog = false
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                         ) {
@@ -5058,6 +5193,64 @@ fun PaymentsScreen(
             }
             matchesGroup && matchesStatus
         }
+    }
+
+    var warningPaymentToConfirm by remember { mutableStateOf<Pair<Payment, Double>?>(null) }
+
+    if (warningPaymentToConfirm != null) {
+        val (payment, feeAmount) = warningPaymentToConfirm!!
+        val grp = groups.find { it.id == payment.groupId }
+        val stud = students.find { it.id == payment.studentId }
+        val monthDisplay = selectedPeriod.toLegacyString()
+        AlertDialog(
+            onDismissRequest = { warningPaymentToConfirm = null },
+            icon = {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = DangerRed,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "تنبيه: تاريخ الدفع",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    text = "الشهر المالي المختار ($monthDisplay) يسبق تاريخ بدء المجموعة (${grp?.startDate ?: ""}) للطالب (${stud?.name ?: ""}). هل أنت متأكد من رغبتك في تسجيل الدفع؟",
+                    fontSize = 14.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetState = !payment.isPaid
+                        viewModel.addPayment(
+                            studentId = payment.studentId,
+                            month = payment.month,
+                            amount = feeAmount,
+                            isPaid = targetState
+                        )
+                        warningPaymentToConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                ) {
+                    Text("نعم، متأكد")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { warningPaymentToConfirm = null }) {
+                    Text("إلغاء", color = Color.Gray)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -5371,12 +5564,21 @@ fun PaymentsScreen(
                                             .clickable {
                                                 val feeAmount = grp?.monthlyFee ?: 200.0
                                                 val targetState = !payment.isPaid
-                                                viewModel.addPayment(
-                                                    studentId = payment.studentId,
-                                                    month = payment.month,
-                                                    amount = feeAmount,
-                                                    isPaid = targetState
-                                                )
+                                                
+                                                val groupStartCode = grp?.startDate?.let { viewModel.toYearMonth(it) }
+                                                val paymentMonthCode = viewModel.toYearMonth(payment.month)
+                                                val isBeforeStart = groupStartCode != null && groupStartCode.isNotBlank() && paymentMonthCode < groupStartCode
+                                                
+                                                if (targetState && isBeforeStart) {
+                                                    warningPaymentToConfirm = Pair(payment, feeAmount)
+                                                } else {
+                                                    viewModel.addPayment(
+                                                        studentId = payment.studentId,
+                                                        month = payment.month,
+                                                        amount = feeAmount,
+                                                        isPaid = targetState
+                                                    )
+                                                }
                                             }
                                     ) {
                                         Text(
@@ -5406,6 +5608,7 @@ fun ReportsBackupScreen(
     viewModel: TeacherViewModel
 ) {
     val context = LocalContext.current
+    val pinStorage = remember { PinStorage(context) }
     val groups by viewModel.groups.collectAsState()
     val students by viewModel.students.collectAsState()
     val payments by viewModel.payments.collectAsState()
@@ -5418,6 +5621,10 @@ fun ReportsBackupScreen(
     var restoreTextState by remember { mutableStateOf("") }
     var showCsvSharingSuccess by remember { mutableStateOf(false) }
     var showStartNewYearDialog by remember { mutableStateOf(false) }
+
+    var showVerifyPinToChange by remember { mutableStateOf(false) }
+    var showVerifyPinToDeleteAll by remember { mutableStateOf(false) }
+    var showVerifyPinToMoveRows by remember { mutableStateOf(false) }
 
     if (showStartNewYearDialog) {
         StartNewAcademicYearDialog(
@@ -5657,7 +5864,13 @@ fun ReportsBackupScreen(
                     )
 
                     Button(
-                        onClick = { showStartNewYearDialog = true },
+                        onClick = {
+                            if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                                showVerifyPinToMoveRows = true
+                            } else {
+                                showStartNewYearDialog = true
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryDarkGreen),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(44.dp)
@@ -5783,10 +5996,14 @@ fun ReportsBackupScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                viewModel.clearAllDatabaseData {
-                                    Toast.makeText(context, "تم مسح كافة البيانات بنجاح، التطبيق جاهز للاستخدام الفعلي الآن.", Toast.LENGTH_LONG).show()
-                                }
                                 showConfirmResetDialog = false
+                                if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                                    showVerifyPinToDeleteAll = true
+                                } else {
+                                    viewModel.clearAllDatabaseData {
+                                        Toast.makeText(context, "تم مسح كافة البيانات بنجاح، التطبيق جاهز للاستخدام الفعلي الآن.", Toast.LENGTH_LONG).show()
+                                    }
+                                }
                             }
                         ) {
                             Text("نعم، احذف كل شيء", color = DangerRed, fontWeight = FontWeight.Bold)
@@ -5796,6 +6013,49 @@ fun ReportsBackupScreen(
                         TextButton(onClick = { showConfirmResetDialog = false }) {
                             Text("إلغاء", color = Color.Gray)
                         }
+                    }
+                )
+            }
+
+            if (showVerifyPinToChange) {
+                ConfirmPinDialog(
+                    pinStorage = pinStorage,
+                    title = "التحقق من رقم PIN القديم",
+                    subtitle = "يرجى إدخال رقم PIN الحالي لتتمكن من تغييره",
+                    onDismissRequest = { showVerifyPinToChange = false },
+                    onConfirmed = {
+                        showVerifyPinToChange = false
+                        pinStorage.clearPin()
+                        pinStorage.setAuthenticated(false)
+                        Toast.makeText(context, "تم التحقق بنجاح! يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+
+            if (showVerifyPinToDeleteAll) {
+                ConfirmPinDialog(
+                    pinStorage = pinStorage,
+                    title = "تأكيد حذف كافة البيانات",
+                    subtitle = "أدخل رقم PIN لإتمام عملية الحذف والتهيئة الكلية لقاعدة البيانات",
+                    onDismissRequest = { showVerifyPinToDeleteAll = false },
+                    onConfirmed = {
+                        showVerifyPinToDeleteAll = false
+                        viewModel.clearAllDatabaseData {
+                            Toast.makeText(context, "تم مسح كافة البيانات بنجاح، التطبيق جاهز للاستخدام الفعلي الآن.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                )
+            }
+
+            if (showVerifyPinToMoveRows) {
+                ConfirmPinDialog(
+                    pinStorage = pinStorage,
+                    title = "التحقق من رقم PIN",
+                    subtitle = "يرجى إدخال رقم PIN لتتمكن من بدء العام الدراسي الجديد ونقل الصفوف والطلاب",
+                    onDismissRequest = { showVerifyPinToMoveRows = false },
+                    onConfirmed = {
+                        showVerifyPinToMoveRows = false
+                        showStartNewYearDialog = true
                     }
                 )
             }
@@ -5884,7 +6144,6 @@ fun ReportsBackupScreen(
             }
 
             // --- PIN SECURITY CARD SECTION ---
-            val pinStorage = remember { PinStorage(context) }
             var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
             var showPinDialog by remember { mutableStateOf(false) }
 
@@ -5961,9 +6220,13 @@ fun ReportsBackupScreen(
                     if (pinEnabled && pinStorage.hasPin()) {
                         Button(
                             onClick = {
-                                pinStorage.clearPin()
-                                pinStorage.setAuthenticated(false)
-                                Toast.makeText(context, "يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
+                                if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
+                                    showVerifyPinToChange = true
+                                } else {
+                                    pinStorage.clearPin()
+                                    pinStorage.setAuthenticated(false)
+                                    Toast.makeText(context, "يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                             shape = RoundedCornerShape(10.dp),
@@ -8828,4 +9091,104 @@ fun TargetGroupDropdown(
             }
         }
     }
+}
+
+@Composable
+fun ConfirmPinDialog(
+    pinStorage: PinStorage,
+    title: String,
+    subtitle: String,
+    onDismissRequest: () -> Unit,
+    onConfirmed: () -> Unit
+) {
+    var enteredPin by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        icon = {
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+        },
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = enteredPin,
+                    onValueChange = { input ->
+                        if (input.length <= 4 && input.all { it.isDigit() }) {
+                            enteredPin = input
+                            errorMessage = null
+                        }
+                    },
+                    label = { Text("رمز PIN (4 أرقام)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    singleLine = true,
+                    isError = errorMessage != null,
+                    modifier = Modifier.width(180.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+
+                errorMessage?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (pinStorage.verifyPin(enteredPin)) {
+                        onConfirmed()
+                    } else {
+                        errorMessage = "رقم PIN خاطئ، يرجى المحاولة مرة أخرى"
+                        enteredPin = ""
+                    }
+                },
+                enabled = enteredPin.length == 4
+            ) {
+                Text("تأكيد")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("إلغاء", color = Color.Gray)
+            }
+        }
+    )
 }
