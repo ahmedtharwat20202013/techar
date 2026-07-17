@@ -24,6 +24,7 @@ private val DarkColorScheme =
     onSurface = md_theme_dark_onSurface,
     onSurfaceVariant = md_theme_dark_onSurfaceVariant,
     outline = md_theme_dark_outline,
+    outlineVariant = md_theme_dark_outline.copy(alpha = 0.5f),
     error = md_theme_dark_error
   )
 
@@ -46,11 +47,9 @@ private val LightColorScheme =
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is disabled by default to maintain the gorgeous custom branding
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  // Update the global state immediately before composition runs so other color getters resolve correctly
   isDarkThemeGlobal = darkTheme
 
   val colorScheme =

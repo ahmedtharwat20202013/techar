@@ -227,14 +227,14 @@ fun TeacherAppBar(
             ) {
                 Text(
                     text = "M", // "معلم"
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     )
 }
@@ -246,7 +246,7 @@ fun TeacherNavigationBar(
     onNavigate: (String) -> Unit
 ) {
     NavigationBar(
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         val items = listOf(
@@ -545,10 +545,10 @@ fun DashboardScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -558,14 +558,14 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.HomeWork,
                                 contentDescription = null,
-                                tint = Color(0xFF9CA3AF),
+                                tint = TextGray,
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "لا توجد مجموعات دراسية مضافة حتى الآن.",
                                 fontSize = 14.sp,
-                                color = Color(0xFF111827),
+                                color = TextDark,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -576,10 +576,10 @@ fun DashboardScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -589,14 +589,14 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = null,
-                                tint = Color(0xFF9CA3AF),
+                                tint = TextGray,
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "لا توجد حصص مجدولة لليوم الحالي.",
                                 fontSize = 14.sp,
-                                color = Color(0xFF374151),
+                                color = TextGray,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -648,7 +648,7 @@ fun DashboardScreen(
                     ) {
                         // 1. الغياب (Attendance Card)
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(3.dp),
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.2.dp, SoftBgGreen),
@@ -669,7 +669,7 @@ fun DashboardScreen(
                                     modifier = Modifier
                                         .size(54.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFFFF7ED)),
+                                        .background(WarningOrange.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -691,7 +691,7 @@ fun DashboardScreen(
 
                         // 2. الشهرية (Monthly Payments Card)
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(3.dp),
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.2.dp, SoftBgGreen),
@@ -740,7 +740,7 @@ fun DashboardScreen(
                     ) {
                         // 3. تحصيل درجات (Grades Card)
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(3.dp),
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.2.dp, SoftBgGreen),
@@ -761,7 +761,7 @@ fun DashboardScreen(
                                     modifier = Modifier
                                         .size(54.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFEEF2FF)),
+                                        .background(PrimaryGreen.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -783,7 +783,7 @@ fun DashboardScreen(
 
                         // 4. إضافة طالب (Add Student Card)
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(3.dp),
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.2.dp, SoftBgGreen),
@@ -804,7 +804,7 @@ fun DashboardScreen(
                                     modifier = Modifier
                                         .size(54.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFECFDF5)),
+                                        .background(SuccessGreen.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -923,7 +923,7 @@ fun DashboardScreen(
                     Text("إلغاء", color = PrimaryGreen)
                 }
             },
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -989,7 +989,7 @@ fun AddGroupDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1030,7 +1030,7 @@ fun AddGroupDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -1066,7 +1066,7 @@ fun AddGroupDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -1093,10 +1093,10 @@ fun AddGroupDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) PrimaryGreen else Color(0xFFF3F4F6))
+                                .background(if (isSelected) PrimaryGreen else SoftBgGreen)
                                 .border(
                                     width = 1.dp,
-                                    color = if (isSelected) PrimaryDarkGreen else Color(0xFFD1D5DB),
+                                    color = if (isSelected) PrimaryDarkGreen else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .clickable {
@@ -1111,7 +1111,7 @@ fun AddGroupDialog(
                         ) {
                             Text(
                                 text = day,
-                                color = if (isSelected) Color.White else Color(0xFF374151),
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else TextGray,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
@@ -1139,13 +1139,13 @@ fun AddGroupDialog(
                             sessionsPerMonth = "0"
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (groupType == GroupType.public) PrimaryGreen else Color(0xFFF3F4F6)
+                            containerColor = if (groupType == GroupType.public) PrimaryGreen else SoftBgGreen
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
                             text = "عامة (Public)",
-                            color = if (groupType == GroupType.public) Color.White else Color.Black,
+                            color = if (groupType == GroupType.public) MaterialTheme.colorScheme.onPrimary else TextDark,
                             fontSize = 11.sp
                         )
                     }
@@ -1154,13 +1154,13 @@ fun AddGroupDialog(
                         modifier = Modifier.weight(1f),
                         onClick = { groupType = GroupType.private },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (groupType == GroupType.private) PrimaryGreen else Color(0xFFF3F4F6)
+                            containerColor = if (groupType == GroupType.private) PrimaryGreen else SoftBgGreen
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
                             text = "خاصة (Private)",
-                            color = if (groupType == GroupType.private) Color.White else Color.Black,
+                            color = if (groupType == GroupType.private) MaterialTheme.colorScheme.onPrimary else TextDark,
                             fontSize = 11.sp
                         )
                     }
@@ -1189,13 +1189,13 @@ fun AddGroupDialog(
                                 modifier = Modifier.weight(1f),
                                 onClick = { billingMode = BillingMode.monthly },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (billingMode == BillingMode.monthly) PrimaryGreen else Color(0xFFF3F4F6)
+                                    containerColor = if (billingMode == BillingMode.monthly) PrimaryGreen else SoftBgGreen
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(
                                     text = "شهري ثابث (Monthly)",
-                                    color = if (billingMode == BillingMode.monthly) Color.White else Color.Black,
+                                    color = if (billingMode == BillingMode.monthly) MaterialTheme.colorScheme.onPrimary else TextDark,
                                     fontSize = 11.sp
                                 )
                             }
@@ -1204,13 +1204,13 @@ fun AddGroupDialog(
                                 modifier = Modifier.weight(1f),
                                 onClick = { billingMode = BillingMode.per_session },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (billingMode == BillingMode.per_session) PrimaryGreen else Color(0xFFF3F4F6)
+                                    containerColor = if (billingMode == BillingMode.per_session) PrimaryGreen else SoftBgGreen
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(
                                     text = "عدد الحصص (Sessions)",
-                                    color = if (billingMode == BillingMode.per_session) Color.White else Color.Black,
+                                    color = if (billingMode == BillingMode.per_session) MaterialTheme.colorScheme.onPrimary else TextDark,
                                     fontSize = 11.sp
                                 )
                             }
@@ -1268,7 +1268,7 @@ fun AddGroupDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("حفظ المجموعة", color = Color.White)
+                        Text("حفظ المجموعة", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -1334,8 +1334,8 @@ fun ClassesScreen(
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextGray) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = PrimaryGreen,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
@@ -1384,7 +1384,7 @@ fun ClassesScreen(
                 .padding(bottom = 78.dp, end = 20.dp)
                 .testTag("add_class_fab"),
             containerColor = AccentGreen,
-            contentColor = Color.White,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             shape = RoundedCornerShape(18.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add Class", modifier = Modifier.size(34.dp))
@@ -1429,7 +1429,7 @@ fun ClassesScreen(
             },
             dismissButton = {
                 TextButton(onClick = { selectedGroupToDelete = null }) {
-                    Text("إلغاء", color = Color.Gray)
+                    Text("إلغاء", color = TextGray)
                 }
             }
         )
@@ -1450,7 +1450,7 @@ fun GroupCard(
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("group_card_${group.id}"),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, SoftBgGreen)
@@ -1605,10 +1605,10 @@ fun DashboardGroupCard(
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("dashboard_group_card_${group.id}"),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -1624,7 +1624,7 @@ fun DashboardGroupCard(
                     text = group.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A),
+                    color = TextDark,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
@@ -1643,8 +1643,8 @@ fun DashboardGroupCard(
                             modifier = Modifier
                                 .weight(1.3f)
                                 .height(38.dp)
-                                .background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
-                                .border(BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)), RoundedCornerShape(8.dp)),
+                                .background(SoftBgGreen, RoundedCornerShape(8.dp))
+                                .border(BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.3f)), RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
@@ -1655,7 +1655,7 @@ fun DashboardGroupCard(
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = Color(0xFF10B981),
+                                    tint = SuccessGreen,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1679,9 +1679,9 @@ fun DashboardGroupCard(
                                 .testTag("open_attendance_notes_btn_${group.id}"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = PrimaryGreen,
-                                contentColor = Color.White,
-                                disabledContainerColor = Color(0xFFE2E8F0),
-                                disabledContentColor = Color(0xFF94A3B8)
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContentColor = TextGray
                             ),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(0.dp)
@@ -1693,7 +1693,7 @@ fun DashboardGroupCard(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Launch,
                                     contentDescription = null,
-                                    tint = if (todaySession != null) Color.White else Color(0xFF94A3B8),
+                                    tint = if (todaySession != null) Color.White else TextGray,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1701,7 +1701,7 @@ fun DashboardGroupCard(
                                     text = "أخذ الغياب",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (todaySession != null) Color.White else Color(0xFF94A3B8)
+                                    color = if (todaySession != null) MaterialTheme.colorScheme.onPrimary else TextGray
                                 )
                             }
                         }
@@ -1715,7 +1715,7 @@ fun DashboardGroupCard(
                             .testTag("record_session_btn_${group.id}"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PrimaryGreen,
-                            contentColor = Color.White
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(0.dp)
@@ -1735,7 +1735,7 @@ fun DashboardGroupCard(
                                 text = "تسجيل حصة اليوم",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                     }
@@ -1800,7 +1800,7 @@ fun GroupDetailScreen(
         ) {
             // Group General Metadata Banner
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(0.dp, 0.dp, 20.dp, 20.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -1891,7 +1891,7 @@ fun GroupDetailScreen(
             // Tab Rows
             TabRow(
                 selectedTabIndex = selectedTabIndex,
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = PrimaryDarkGreen
             ) {
                 Tab(
@@ -1957,7 +1957,7 @@ fun GroupDetailScreen(
                                     .padding(bottom = 20.dp, end = 20.dp)
                                     .testTag("add_student_fab"),
                                 containerColor = AccentGreen,
-                                contentColor = Color.White,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                                 shape = RoundedCornerShape(18.dp)
                             ) {
                                 Icon(Icons.Default.PersonAdd, contentDescription = "Add Student", modifier = Modifier.size(30.dp))
@@ -2013,7 +2013,7 @@ fun GroupDetailScreen(
                         ) {
                             // Month Switcher Component card
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, SoftBgGreen),
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)
@@ -2105,7 +2105,7 @@ fun GroupDetailScreen(
                                 ) {
                                     items(filteredSessions) { session ->
                                         Card(
-                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                             modifier = Modifier.fillMaxWidth(),
                                             elevation = CardDefaults.cardElevation(1.dp),
                                             shape = RoundedCornerShape(12.dp)
@@ -2130,7 +2130,7 @@ fun GroupDetailScreen(
                                                     ) {
                                                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("الحضور والغياب", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        Text("الحضور والغياب", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                                                     }
 
                                                     IconButton(
@@ -2185,7 +2185,7 @@ fun GroupDetailScreen(
                         ) {
                             item {
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     shape = RoundedCornerShape(16.dp),
                                     elevation = CardDefaults.cardElevation(2.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -2224,7 +2224,7 @@ fun GroupDetailScreen(
                                                 text = "مرفقات مذكرة الحصة (${selectedAttachments.size})",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.Gray
+                                                color = TextGray
                                             )
                                             
                                             IconButton(
@@ -2343,7 +2343,7 @@ fun GroupDetailScreen(
 
                                 items(dailyNotes.sortedByDescending { it.date }) { note ->
                                     Card(
-                                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
                                         shape = RoundedCornerShape(12.dp),
                                         modifier = Modifier.fillMaxWidth(),
                                         elevation = CardDefaults.cardElevation(1.dp)
@@ -2365,7 +2365,7 @@ fun GroupDetailScreen(
                                             Text(
                                                 text = note.content,
                                                 fontSize = 12.sp,
-                                                color = Color.DarkGray
+                                                color = TextGray
                                             )
 
                                             // Render saved attachments list
@@ -2377,7 +2377,7 @@ fun GroupDetailScreen(
                                                         text = "المرفقات:",
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = Color.Gray
+                                                        color = TextGray
                                                     )
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     LazyRow(
@@ -2407,7 +2407,7 @@ fun GroupDetailScreen(
                                                                     Text(
                                                                         text = fileName,
                                                                         fontSize = 11.sp,
-                                                                        color = Color.DarkGray,
+                                                                        color = TextGray,
                                                                         maxLines = 1,
                                                                         overflow = TextOverflow.Ellipsis,
                                                                         modifier = Modifier.widthIn(max = 120.dp)
@@ -2477,7 +2477,7 @@ fun GroupDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { selectedStudentToDelete = null }) {
-                    Text("إلغاء", color = Color.Gray)
+                    Text("إلغاء", color = TextGray)
                 }
             }
         )
@@ -2570,7 +2570,7 @@ fun GroupDetailScreen(
 
         AlertDialog(
             onDismissRequest = { showPromoteGroupDialog = false },
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("ترحيل طلاب المجموعة", color = PrimaryDarkGreen, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
@@ -2620,7 +2620,7 @@ fun GroupDetailScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                     enabled = selectedTargetGroupId != null
                 ) {
-                    Text("تأكيد الترحيل", color = Color.White)
+                    Text("تأكيد الترحيل", color = MaterialTheme.colorScheme.onPrimary)
                 }
             },
             dismissButton = {
@@ -2657,7 +2657,7 @@ fun StudentListCard(
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("student_card_${student.id}"),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(1.dp),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, SoftBgGreen)
@@ -2803,7 +2803,7 @@ fun AddStudentDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -2872,7 +2872,7 @@ fun AddStudentDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -2927,7 +2927,7 @@ fun AddStudentDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("حفظ", color = Color.White)
+                        Text("حفظ", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3000,7 +3000,7 @@ fun EditGroupDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -3046,7 +3046,7 @@ fun EditGroupDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -3095,7 +3095,7 @@ fun EditGroupDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -3122,10 +3122,10 @@ fun EditGroupDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) PrimaryGreen else Color(0xFFF3F4F6))
+                                .background(if (isSelected) PrimaryGreen else SoftBgGreen)
                                 .border(
                                     width = 1.dp,
-                                    color = if (isSelected) PrimaryDarkGreen else Color(0xFFD1D5DB),
+                                    color = if (isSelected) PrimaryDarkGreen else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .clickable {
@@ -3140,7 +3140,7 @@ fun EditGroupDialog(
                         ) {
                             Text(
                                 text = day,
-                                color = if (isSelected) Color.White else Color(0xFF374151),
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else TextGray,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
@@ -3168,13 +3168,13 @@ fun EditGroupDialog(
                             sessionsPerMonth = "0"
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (groupType == GroupType.public) PrimaryGreen else Color(0xFFF3F4F6)
+                            containerColor = if (groupType == GroupType.public) PrimaryGreen else SoftBgGreen
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
                             text = "عامة (Public)",
-                            color = if (groupType == GroupType.public) Color.White else Color.Black,
+                            color = if (groupType == GroupType.public) MaterialTheme.colorScheme.onPrimary else TextDark,
                             fontSize = 11.sp
                         )
                     }
@@ -3183,13 +3183,13 @@ fun EditGroupDialog(
                         modifier = Modifier.weight(1f),
                         onClick = { groupType = GroupType.private },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (groupType == GroupType.private) PrimaryGreen else Color(0xFFF3F4F6)
+                            containerColor = if (groupType == GroupType.private) PrimaryGreen else SoftBgGreen
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
                             text = "خاصة (Private)",
-                            color = if (groupType == GroupType.private) Color.White else Color.Black,
+                            color = if (groupType == GroupType.private) MaterialTheme.colorScheme.onPrimary else TextDark,
                             fontSize = 11.sp
                         )
                     }
@@ -3218,13 +3218,13 @@ fun EditGroupDialog(
                                 modifier = Modifier.weight(1f),
                                 onClick = { billingMode = BillingMode.monthly },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (billingMode == BillingMode.monthly) PrimaryGreen else Color(0xFFF3F4F6)
+                                    containerColor = if (billingMode == BillingMode.monthly) PrimaryGreen else SoftBgGreen
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(
                                     text = "شهري ثابث (Monthly)",
-                                    color = if (billingMode == BillingMode.monthly) Color.White else Color.Black,
+                                    color = if (billingMode == BillingMode.monthly) MaterialTheme.colorScheme.onPrimary else TextDark,
                                     fontSize = 11.sp
                                 )
                             }
@@ -3233,13 +3233,13 @@ fun EditGroupDialog(
                                 modifier = Modifier.weight(1f),
                                 onClick = { billingMode = BillingMode.per_session },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (billingMode == BillingMode.per_session) PrimaryGreen else Color(0xFFF3F4F6)
+                                    containerColor = if (billingMode == BillingMode.per_session) PrimaryGreen else SoftBgGreen
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(
                                     text = "عدد الحصص (Sessions)",
-                                    color = if (billingMode == BillingMode.per_session) Color.White else Color.Black,
+                                    color = if (billingMode == BillingMode.per_session) MaterialTheme.colorScheme.onPrimary else TextDark,
                                     fontSize = 11.sp
                                 )
                             }
@@ -3311,7 +3311,7 @@ fun EditGroupDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("تعديل المجموعة", color = Color.White)
+                        Text("تعديل المجموعة", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3353,7 +3353,7 @@ fun EditStudentDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -3422,7 +3422,7 @@ fun EditStudentDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -3485,7 +3485,7 @@ fun EditStudentDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("حفظ التغييرات", color = Color.White)
+                        Text("حفظ التغييرات", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3503,7 +3503,7 @@ fun DashboardAddStudentDialog(
     if (groupsList.isEmpty()) {
         Dialog(onDismissRequest = onDismiss) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -3523,7 +3523,7 @@ fun DashboardAddStudentDialog(
                         onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("موافق", color = Color.White)
+                        Text("موافق", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3548,7 +3548,7 @@ fun DashboardAddStudentDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -3584,8 +3584,8 @@ fun DashboardAddStudentDialog(
                             unfocusedBorderColor = PrimaryGreen,
                             focusedLabelColor = PrimaryDarkGreen,
                             unfocusedLabelColor = PrimaryDarkGreen,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
                         )
                     )
                     // Invisible overlay to make it perfectly clickable on any coordinate
@@ -3729,7 +3729,7 @@ fun DashboardAddStudentDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("حفظ", color = Color.White)
+                        Text("حفظ", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3789,7 +3789,7 @@ fun AddSessionDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -3822,7 +3822,7 @@ fun AddSessionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -3843,7 +3843,7 @@ fun AddSessionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = PrimaryGreen,
                             disabledLabelColor = PrimaryDarkGreen
                         )
@@ -3871,7 +3871,7 @@ fun AddSessionDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("حفظ", color = Color.White)
+                        Text("حفظ", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -3968,7 +3968,7 @@ fun AttendanceSheetScreen(
         ) {
             // Stats Header Card
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             ) {
@@ -4074,8 +4074,8 @@ fun AttendanceSheetScreen(
                             colors = CardDefaults.cardColors(
                                 containerColor = when (status) {
                                     AttendanceStatus.present -> Color.White
-                                    AttendanceStatus.absent -> Color(0xFFFDF2F2)
-                                    AttendanceStatus.late -> Color(0xFFFFFBEB)
+                                    AttendanceStatus.absent -> DangerRed.copy(alpha = 0.05f)
+                                    AttendanceStatus.late -> WarningOrange.copy(alpha = 0.05f)
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
@@ -4185,7 +4185,7 @@ fun AttendanceSheetScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("تأكيد وحفظ التغييرات الكلية", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("تأكيد وحفظ التغييرات الكلية", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -4274,7 +4274,7 @@ fun StudentProfileScreen(
             item {
                 Spacer(modifier = Modifier.height(6.dp))
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(2.dp),
                     modifier = Modifier.fillMaxWidth().testTag("student_profile_card")
@@ -4293,7 +4293,7 @@ fun StudentProfileScreen(
                         ) {
                             Text(
                                 text = student?.name?.take(2) ?: "ط",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 24.sp
                             )
@@ -4434,7 +4434,7 @@ fun StudentProfileScreen(
             // Private Notes Section
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -4477,7 +4477,7 @@ fun StudentProfileScreen(
                             shape = RoundedCornerShape(10.dp),
                             enabled = student?.status == "active" && student.isDropped == false
                         ) {
-                            Text("تسجيل دفع", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("تسجيل دفع", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
@@ -4487,7 +4487,7 @@ fun StudentProfileScreen(
                             shape = RoundedCornerShape(10.dp),
                             enabled = student?.status == "active" && student.isDropped == false
                         ) {
-                            Text("إضافة درجة اختبار", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("إضافة درجة اختبار", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -4515,7 +4515,7 @@ fun StudentProfileScreen(
                                         modifier = Modifier.fillMaxWidth().then(
                                             if (studentEnrollments.size > 1) Modifier.clickable { expandedPdfEnrollment = true } else Modifier
                                         ),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                         border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -4587,7 +4587,7 @@ fun StudentProfileScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("عرض ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("عرض ملف PDF", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 Button(
@@ -4610,7 +4610,7 @@ fun StudentProfileScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("تحميل ملف PDF", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("تحميل ملف PDF", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -4652,7 +4652,7 @@ fun StudentProfileScreen(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (student.isDropped) Color(0xFFF3F4F6) else Color(0xFFFFECEB)
+                                containerColor = if (student.isDropped) SoftBgGreen else Color(0xFFFFECEB)
                             ),
                             shape = RoundedCornerShape(10.dp)
                         ) {
@@ -4663,12 +4663,12 @@ fun StudentProfileScreen(
                                 Icon(
                                     imageVector = if (student.isDropped) Icons.Default.Lock else Icons.Default.Block,
                                     contentDescription = null,
-                                    tint = if (student.isDropped) Color.Gray else DangerRed,
+                                    tint = if (student.isDropped) TextGray else DangerRed,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = if (student.isDropped) "⚠️ الطالب منقطع حالياً (البيانات مجمدة)" else "تسجيل انقطاع الطالب (انقطع)",
-                                    color = if (student.isDropped) Color.Gray else DangerRed,
+                                    color = if (student.isDropped) TextGray else DangerRed,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -4693,7 +4693,7 @@ fun StudentProfileScreen(
             // ATTENDANCE TIMELINE HISTORY
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -4788,12 +4788,12 @@ fun StudentProfileScreen(
                                         if (attendeeRecord == null) {
                                             Box(
                                                 modifier = Modifier
-                                                    .background(Color(0xFFF1F5F9), RoundedCornerShape(6.dp))
+                                                    .background(SoftBgGreen, RoundedCornerShape(6.dp))
                                                     .padding(horizontal = 10.dp, vertical = 4.dp)
                                             ) {
                                                 Text(
                                                     text = "غير مسجل / No Record",
-                                                    color = Color(0xFF64748B),
+                                                    color = TextGray,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -4843,7 +4843,7 @@ fun StudentProfileScreen(
             item {
                 val lateRecords = attendances.filter { it.status == AttendanceStatus.late }
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier.fillMaxWidth().testTag("late_attendance_history_card")
@@ -4900,7 +4900,7 @@ fun StudentProfileScreen(
             // PAYMENTS DETAILED SUMMARY
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -4955,7 +4955,7 @@ fun StudentProfileScreen(
             // EXAMS DETAILED GRADES
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -5105,14 +5105,14 @@ fun StudentProfileScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showBeforeStartDateWarning = false }) {
-                            Text("إلغاء", color = Color.Gray)
+                            Text("إلغاء", color = TextGray)
                         }
                     }
                 )
             }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -5139,8 +5139,8 @@ fun StudentProfileScreen(
                                 unfocusedBorderColor = PrimaryGreen,
                                 focusedLabelColor = PrimaryDarkGreen,
                                 unfocusedLabelColor = PrimaryDarkGreen,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             )
                         )
                         Box(
@@ -5209,7 +5209,7 @@ fun StudentProfileScreen(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                         ) {
-                            Text("تأكيد الدفع", color = Color.White)
+                            Text("تأكيد الدفع", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -5225,7 +5225,7 @@ fun StudentProfileScreen(
             var maxStr by remember { mutableStateOf("20") }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -5282,7 +5282,7 @@ fun StudentProfileScreen(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                         ) {
-                            Text("حفظ", color = Color.White)
+                            Text("حفظ", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -5296,7 +5296,7 @@ fun StudentProfileScreen(
             var updatedNotes by remember { mutableStateOf(student?.notes ?: "") }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -5338,7 +5338,7 @@ fun StudentProfileScreen(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                         ) {
-                            Text("تأكيد وتعديل كلي", color = Color.White)
+                            Text("تأكيد وتعديل كلي", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -5494,7 +5494,7 @@ fun PaymentsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { warningPaymentToConfirm = null }) {
-                    Text("إلغاء", color = Color.Gray)
+                    Text("إلغاء", color = TextGray)
                 }
             }
         )
@@ -5527,7 +5527,7 @@ fun PaymentsScreen(
         ) {
             // Month Navigator Card Component
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -5639,8 +5639,8 @@ fun PaymentsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("التحصيل المالي لشهر ${selectedPeriod.formatArabicMonth()}", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
-                        Text("${stats.monthlyRevenue} ج.م", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("التحصيل المالي لشهر ${selectedPeriod.formatArabicMonth()}", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f), fontSize = 11.sp)
+                        Text("${stats.monthlyRevenue} ج.م", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                     }
 
                     Box(
@@ -5680,8 +5680,8 @@ fun PaymentsScreen(
                                 unfocusedBorderColor = PrimaryGreen,
                                 focusedLabelColor = PrimaryDarkGreen,
                                 unfocusedLabelColor = PrimaryDarkGreen,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             )
                         )
                         // Clickable overlay on top to ensure clicks are caught properly
@@ -5721,7 +5721,7 @@ fun PaymentsScreen(
                         ) {
                             Text(
                                 text = label,
-                                color = if (selectedStatus == idx) Color.White else PrimaryDarkGreen,
+                                color = if (selectedStatus == idx) MaterialTheme.colorScheme.onPrimary else PrimaryDarkGreen,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -5748,7 +5748,7 @@ fun PaymentsScreen(
                         val grp = groups.find { it.id == studGroupId }
 
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { stud?.let { onNavigateToStudent(it.id, studGroupId) } },
@@ -6060,7 +6060,7 @@ fun ReportsBackupScreen(
         // --- SECTION EXPORTER SHARING CHEETS ---
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6083,7 +6083,7 @@ fun ReportsBackupScreen(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(44.dp)
                     ) {
-                        Text("مشاركة وتصدير ملف Excel", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("مشاركة وتصدير ملف Excel", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -6092,7 +6092,7 @@ fun ReportsBackupScreen(
         // --- START NEW ACADEMIC YEAR SECTION ---
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6122,7 +6122,7 @@ fun ReportsBackupScreen(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(44.dp)
                     ) {
-                        Text("إعداد الموسم الجديد وترحيل الطلاب", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("إعداد الموسم الجديد وترحيل الطلاب", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -6131,7 +6131,7 @@ fun ReportsBackupScreen(
         // --- BACKUP RESTORE CARD SECTION ---
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6155,7 +6155,7 @@ fun ReportsBackupScreen(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("تفويض وتوليد كود الحفظ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("تفويض وتوليد كود الحفظ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
                     if (backupTextState.isNotBlank()) {
@@ -6180,7 +6180,7 @@ fun ReportsBackupScreen(
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("نسخ كود الحفظ الاحتياطي للاستخدام لاحقاً", color = Color.White, fontSize = 11.sp)
+                            Text("نسخ كود الحفظ الاحتياطي للاستخدام لاحقاً", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp)
                         }
                     }
                 }
@@ -6190,7 +6190,7 @@ fun ReportsBackupScreen(
         // --- RESTORE BACKUP SYSTEM ---
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6225,7 +6225,7 @@ fun ReportsBackupScreen(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("تأكيد استدعاء واستعادة البيانات", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("تأكيد استدعاء واستعادة البيانات", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -6258,7 +6258,7 @@ fun ReportsBackupScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showConfirmResetDialog = false }) {
-                            Text("إلغاء", color = Color.Gray)
+                            Text("إلغاء", color = TextGray)
                         }
                     }
                 )
@@ -6309,7 +6309,7 @@ fun ReportsBackupScreen(
 
             // --- DELETED STUDENTS / ADVANCED OPTIONS (TRASH BIN) ---
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6367,7 +6367,7 @@ fun ReportsBackupScreen(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text("استعادة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("استعادة", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
 
                                     // Hard Delete Button
@@ -6381,7 +6381,7 @@ fun ReportsBackupScreen(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text("حذف نهائي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("حذف نهائي", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -6414,14 +6414,14 @@ fun ReportsBackupScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showPinDialog = false }) {
-                            Text("إلغاء", color = Color.Gray)
+                            Text("إلغاء", color = TextGray)
                         }
                     }
                 )
             }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6440,9 +6440,9 @@ fun ReportsBackupScreen(
                         Switch(
                             checked = pinEnabled,
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                                 checkedTrackColor = PrimaryGreen,
-                                uncheckedThumbColor = Color.Gray,
+                                uncheckedThumbColor = TextGray,
                                 uncheckedTrackColor = Color.LightGray
                             ),
                             onCheckedChange = { enabled ->
@@ -6479,7 +6479,7 @@ fun ReportsBackupScreen(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("تغيير رقم PIN الحالي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("تغيير رقم PIN الحالي", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -6488,7 +6488,7 @@ fun ReportsBackupScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -6512,7 +6512,7 @@ fun ReportsBackupScreen(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("مسح وحذف قاعدة البيانات بالكامل", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("مسح وحذف قاعدة البيانات بالكامل", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -6693,7 +6693,7 @@ fun StartNewAcademicYearDialog(
                 .fillMaxSize()
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onPrimary,
             tonalElevation = 4.dp
         ) {
             Column(
@@ -6909,7 +6909,7 @@ fun StartNewAcademicYearDialog(
                                             val isExpanded = expandedGroups[group.id] ?: false
 
                                             Card(
-                                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                                                colors = CardDefaults.cardColors(containerColor = SurfaceContainer),
                                                 border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
                                                 shape = RoundedCornerShape(16.dp),
                                                 modifier = Modifier.fillMaxWidth()
@@ -7154,7 +7154,7 @@ fun StartNewAcademicYearDialog(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1.5f)
                         ) {
-                            Text("التالي", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("التالي", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Button(
@@ -7232,7 +7232,7 @@ fun StartNewAcademicYearDialog(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1.5f)
                         ) {
-                            Text("تأكيد وبدء السنة الدراسية", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("تأكيد وبدء السنة الدراسية", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -7278,7 +7278,7 @@ fun SearchSystemOverlay(
 
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
         ) {
@@ -7405,7 +7405,7 @@ fun StudentsScreen(
             FloatingActionButton(
                 onClick = { showAddStudentDialog = true },
                 containerColor = PrimaryGreen,
-                contentColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.padding(bottom = 16.dp).testTag("add_student_fab")
             ) {
@@ -7438,8 +7438,8 @@ fun StudentsScreen(
                 trailingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PrimaryGreen) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = PrimaryGreen,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
@@ -7453,13 +7453,13 @@ fun StudentsScreen(
                     Triple("graduated", "خريجون", Color(0xFF1976D2)),
                     Triple("withdrawn", "منسحبون", Color(0xFFF57C00)),
                     Triple("dropped", "منقطعون", Color(0xFFC62828)),
-                    Triple("all", "الكل", Color(0xFF374151))
+                    Triple("all", "الكل", TextGray)
                 ).forEach { (filterType, label, color) ->
                     val isSelected = selectedFilter == filterType
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedFilter = filterType },
-                        label = { Text(label, color = if (isSelected) Color.White else color, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                        label = { Text(label, color = if (isSelected) MaterialTheme.colorScheme.onPrimary else color, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = color
                         )
@@ -7494,7 +7494,7 @@ fun StudentsScreen(
                         val context = LocalContext.current
 
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onNavigateToStudent(student.id, sGrpId) },
@@ -8736,7 +8736,7 @@ fun ExamsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp)
-                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                     .padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -8768,7 +8768,7 @@ fun ExamsScreen(
                 ) {
                     item {
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, SoftBgGreen),
                             modifier = Modifier.fillMaxWidth()
@@ -8840,7 +8840,7 @@ fun ExamsScreen(
                                                 ) {
                                                     Text(
                                                         text = grp.name,
-                                                        color = if (isSelected) Color.White else PrimaryDarkGreen,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else PrimaryDarkGreen,
                                                         fontSize = 12.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -8877,7 +8877,7 @@ fun ExamsScreen(
                                 }
                             }
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(16.dp),
                                 border = BorderStroke(1.dp, SoftBgGreen),
                                 modifier = Modifier.fillMaxWidth()
@@ -8978,7 +8978,7 @@ fun ExamsScreen(
                                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                                             shape = RoundedCornerShape(12.dp)
                                         ) {
-                                            Text("حفظ الدرجات", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            Text("حفظ الدرجات", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                         }
                                     }
                                 }
@@ -8989,7 +8989,7 @@ fun ExamsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color.White, RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                                     .padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -9004,7 +9004,7 @@ fun ExamsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
                             .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -9029,7 +9029,7 @@ fun ExamsScreen(
 
                             item {
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     shape = RoundedCornerShape(16.dp),
                                     border = BorderStroke(1.dp, SoftBgGreen),
                                     modifier = Modifier
@@ -9236,7 +9236,7 @@ fun StudentMigrationRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
             .border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -9250,7 +9250,7 @@ fun StudentMigrationRow(
                 Text(
                     "المجموعة الحالية: ${groups.find { it.id == currentGroupId }?.name ?: "غير معروف"}",
                     fontSize = 11.sp,
-                    color = Color.Gray
+                    color = TextGray
                 )
             }
         }
@@ -9301,7 +9301,7 @@ fun TargetGroupDropdown(
             onClick = { expanded = true },
             border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.3f)),
             shape = RoundedCornerShape(8.dp),
-            color = Color(0xFFEEF2FF)
+            color = PrimaryGreen.copy(alpha = 0.1f)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
@@ -9378,7 +9378,7 @@ fun ConfirmPinDialog(
                 Text(
                     text = subtitle,
                     fontSize = 13.sp,
-                    color = Color.Gray,
+                    color = TextGray,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -9434,7 +9434,7 @@ fun ConfirmPinDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismissRequest) {
-                Text("إلغاء", color = Color.Gray)
+                Text("إلغاء", color = TextGray)
             }
         }
     )
