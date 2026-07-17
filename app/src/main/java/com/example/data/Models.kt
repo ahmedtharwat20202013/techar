@@ -292,3 +292,31 @@ data class DroppedStudent(
     val totalDue: Double,
     val notes: String? = ""
 )
+
+enum class FileType { IMAGE, VIDEO, PDF, AUDIO, OTHER }
+
+@Entity(
+    tableName = "group_files",
+    foreignKeys = [
+        ForeignKey(
+            entity = Group::class,
+            parentColumns = ["id"],
+            childColumns = ["groupId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["groupId"]), Index(value = ["groupId", "fileType"])]
+)
+data class GroupFile(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val groupId: Int,
+    val fileName: String,
+    val fileUri: String,
+    val fileType: FileType,
+    val fileSize: Long,
+    val mimeType: String,
+    val uploadDate: String,
+    val notes: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+

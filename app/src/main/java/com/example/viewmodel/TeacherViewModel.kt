@@ -78,6 +78,39 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
 
     // Base Flows from DB (Mapped seamlessly to legacy String representations for the UI)
     val groups = repository.allGroups.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _groupFiles = MutableStateFlow<List<GroupFile>>(emptyList())
+    val groupFiles: StateFlow<List<GroupFile>> = _groupFiles.asStateFlow()
+
+    fun loadGroupFiles(groupId: Int) {
+        viewModelScope.launch {
+            repository.getGroupFiles(groupId).collect { files ->
+                _groupFiles.value = files
+            }
+        }
+    }
+
+    fun addGroupFile(file: GroupFile) {
+        viewModelScope.launch {
+            repository.addGroupFile(file)
+        }
+    }
+
+    fun deleteGroupFile(file: GroupFile) {
+        viewModelScope.launch {
+            repository.deleteGroupFile(file)
+            try {
+                val fileObj = java.io.File(file.fileUri)
+                if (fileObj.exists()) fileObj.delete()
+            } catch (e: Exception) { }
+        }
+    }
+
+    fun updateFileNotes(file: GroupFile, newNotes: String) {
+        viewModelScope.launch {
+            repository.addGroupFile(file.copy(notes = newNotes))
+        }
+    }
     val groupsWithSessions = repository.getAllGroupsWithSessionsFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val students = repository.allStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val sessions = repository.allSessions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

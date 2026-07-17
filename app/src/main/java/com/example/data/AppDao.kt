@@ -745,4 +745,21 @@ interface AppDao {
         clearStudents()
         clearGroups()
     }
+
+    // --- GROUP FILES ---
+    @Query("SELECT * FROM group_files WHERE groupId = :groupId ORDER BY uploadDate DESC, createdAt DESC")
+    fun getFilesByGroup(groupId: Int): Flow<List<GroupFile>>
+
+    @Insert
+    suspend fun insertFile(file: GroupFile)
+
+    @Delete
+    suspend fun deleteFile(file: GroupFile)
+
+    @Query("DELETE FROM group_files WHERE id = :fileId")
+    suspend fun deleteFileById(fileId: Int)
+
+    @Query("SELECT * FROM group_files WHERE id = :fileId LIMIT 1")
+    suspend fun getFileById(fileId: Int): GroupFile?
 }
+

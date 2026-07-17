@@ -308,4 +308,22 @@ class TeacherRepository(private val appDao: AppDao, private val database: AppDat
         val monthPattern = DateUtils.formatStandard("yyyy-MM-") + "%"
         appDao.deleteOrphanRecentSessions(today, monthPattern)
     }
+
+    // --- GROUP FILES ---
+    fun getGroupFiles(groupId: Int): Flow<List<GroupFile>> = appDao.getFilesByGroup(groupId)
+
+    suspend fun addGroupFile(file: GroupFile) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.insertFile(file)
+        forceDatabaseCheckpoint()
+    }
+
+    suspend fun deleteGroupFile(file: GroupFile) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.deleteFile(file)
+        forceDatabaseCheckpoint()
+    }
+
+    suspend fun deleteGroupFileById(fileId: Int) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        appDao.deleteFileById(fileId)
+        forceDatabaseCheckpoint()
+    }
 }

@@ -1909,6 +1909,11 @@ fun GroupDetailScreen(
                     onClick = { selectedTabIndex = 2 },
                     text = { Text("ملاحظات الحصص والدروس", fontWeight = FontWeight.Bold) }
                 )
+                Tab(
+                    selected = selectedTabIndex == 3,
+                    onClick = { selectedTabIndex = 3 },
+                    text = { Text("ملفات المجموعة", fontWeight = FontWeight.Bold) }
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -2424,6 +2429,13 @@ fun GroupDetailScreen(
                             }
                             item { Spacer(modifier = Modifier.height(100.dp)) }
                         }
+                    }
+                    3 -> {
+                        // --- GROUP FILES TAB ---
+                        GroupFilesTab(
+                            groupId = groupId,
+                            viewModel = viewModel
+                        )
                     }
                 }
             }
@@ -9438,4 +9450,403 @@ fun ConfirmPinDialog(
             }
         }
     )
+}
+
+@Composable
+fun GroupFilesTab(
+    groupId: Int,
+    viewModel: TeacherViewModel
+) {
+    val context = LocalContext.current
+    val files by viewModel.groupFiles.collectAsState()
+    
+    var showEditNotesDialog by remember { mutableStateOf<GroupFile?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf<GroupFile?>(null) }
+    
+    LaunchedEffect(groupId) {
+        viewModel.loadGroupFiles(groupId)
+    }
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val absolutePath = copyUriToGroupFiles(context, uri)
+            if (absolutePath != null) {
+                val fileObj = java.io.File(absolutePath)
+                val mime = context.contentResolver.getType(uri) ?: "*/*"
+                val type = determineFileType(absolutePath, mime)
+                val newFile = GroupFile(
+                    groupId = groupId,
+                    fileName = fileObj.name,
+                    fileUri = absolutePath,
+                    fileType = type,
+                    fileSize = fileObj.length(),
+                    mimeType = mime,
+                    uploadDate = com.example.data.DateUtils.formatStandard("yyyy-MM-dd HH:mm"),
+                    notes = ""
+                )
+                viewModel.addGroupFile(newFile)
+                Toast.makeText(context, "تم رفع الملف بنجاح", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "فشل في حفظ الملف", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (files.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = TextGray.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "لا توجد ملفات في هذه المجموعة حالياً",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextGray
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "اضغط على الزر الدائري لرفع ملخصات، صور، واجبات، أو ملفات PDF للطلاب",
+                        fontSize = 12.sp,
+                        color = TextGray.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "ملفات ومستندات المجموعة الدراسية:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryDarkGreen,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Right
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                
+                items(files.sortedByDescending { it.createdAt }) { file ->
+                    FileCard(
+                        file = file,
+                        onClick = { openAttachment(context, file.fileUri) },
+                        onEditNotes = { showEditNotesDialog = file },
+                        onDelete = { showDeleteConfirmDialog = file }
+                    )
+                }
+                
+                item {
+                    Spacer(modifier = Modifier.height(100.dp))
+                }
+            }
+        }
+        
+        LargeFloatingActionButton(
+            onClick = { filePickerLauncher.launch("*/*") },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 20.dp, end = 20.dp)
+                .testTag("add_file_fab"),
+            containerColor = AccentGreen,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "رفع ملف جديد",
+                modifier = Modifier.size(28.dp),
+                tint = Color.White
+            )
+        }
+    }
+    
+    showEditNotesDialog?.let { file ->
+        var notesText by remember { mutableStateOf(file.notes) }
+        AlertDialog(
+            onDismissRequest = { showEditNotesDialog = null },
+            title = {
+                Text(
+                    text = "تعديل ملاحظات الملف",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = PrimaryDarkGreen,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "أضف وصفاً أو ملاحظة للملف (مثلاً: واجب الحصة، مراجعة الباب الأول...):",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Right
+                    )
+                    OutlinedTextField(
+                        value = notesText,
+                        onValueChange = { notesText = it },
+                        placeholder = { Text("اكتب ملاحظاتك هنا...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        maxLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateFileNotes(file, notesText)
+                        showEditNotesDialog = null
+                        Toast.makeText(context, "تم حفظ الملاحظات", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("حفظ")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNotesDialog = null }) {
+                    Text("إلغاء", color = TextGray)
+                }
+            }
+        )
+    }
+    
+    showDeleteConfirmDialog?.let { file ->
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = null },
+            title = {
+                Text(
+                    text = "حذف الملف؟",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = DangerRed,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            text = {
+                Text(
+                    text = "هل أنت متأكد من رغبتك في حذف الملف \"${file.fileName}\" نهائياً من الجهاز وقاعدة البيانات؟",
+                    fontSize = 13.sp,
+                    color = TextGray,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteGroupFile(file)
+                        showDeleteConfirmDialog = null
+                        Toast.makeText(context, "تم حذف الملف بنجاح", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                ) {
+                    Text("حذف نهائي", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = null }) {
+                    Text("إلغاء", color = TextGray)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun FileCard(
+    file: GroupFile,
+    onClick: () -> Unit,
+    onEditNotes: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val (icon, color) = getFileIconAndColor(file.fileUri)
+    
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("file_card_${file.id}"),
+        elevation = CardDefaults.cardElevation(1.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(color.copy(alpha = 0.1f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = icon, fontSize = 20.sp)
+                    }
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = file.fileName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = PrimaryDarkGreen,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Right
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = formatFileSize(file.fileSize),
+                                fontSize = 11.sp,
+                                color = TextGray
+                            )
+                            Text(
+                                text = "•",
+                                fontSize = 11.sp,
+                                color = TextGray
+                            )
+                            Text(
+                                text = file.uploadDate,
+                                fontSize = 11.sp,
+                                color = TextGray
+                            )
+                        }
+                    }
+                }
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onEditNotes) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "تعديل الملاحظات",
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "حذف الملف",
+                            tint = DangerRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+            
+            if (file.notes.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SoftBgGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            tint = PrimaryDarkGreen,
+                            modifier = Modifier.size(14.dp).padding(top = 2.dp)
+                        )
+                        Text(
+                            text = file.notes,
+                            fontSize = 11.sp,
+                            color = PrimaryDarkGreen,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Right
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun copyUriToGroupFiles(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val contentResolver = context.contentResolver
+        var fileName = "file_${System.currentTimeMillis()}"
+        
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1 && cursor.moveToFirst()) {
+                fileName = cursor.getString(nameIndex)
+            }
+        }
+        
+        val groupFilesDir = java.io.File(context.filesDir, "group_files")
+        if (!groupFilesDir.exists()) {
+            groupFilesDir.mkdirs()
+        }
+        
+        val targetFile = java.io.File(groupFilesDir, fileName)
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            java.io.FileOutputStream(targetFile).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+        targetFile.absolutePath
+    } catch (e: Exception) {
+        android.util.Log.e("GroupFileCopy", "Error copying file", e)
+        null
+    }
+}
+
+fun determineFileType(filePath: String, mimeType: String): FileType {
+    val lowercasePath = filePath.lowercase()
+    return when {
+        mimeType.startsWith("image/") || lowercasePath.endsWith(".png") || lowercasePath.endsWith(".jpg") || lowercasePath.endsWith(".jpeg") || lowercasePath.endsWith(".webp") -> FileType.IMAGE
+        mimeType.startsWith("video/") || lowercasePath.endsWith(".mp4") || lowercasePath.endsWith(".mkv") || lowercasePath.endsWith(".avi") -> FileType.VIDEO
+        mimeType.startsWith("audio/") || lowercasePath.endsWith(".mp3") || lowercasePath.endsWith(".wav") || lowercasePath.endsWith(".m4a") -> FileType.AUDIO
+        mimeType.contains("pdf", ignoreCase = true) || lowercasePath.endsWith(".pdf") -> FileType.PDF
+        else -> FileType.OTHER
+    }
+}
+
+fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
