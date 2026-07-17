@@ -13,38 +13,40 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = AccentGreen,
-    secondary = PrimaryGreen,
-    tertiary = Color(0xFFF8FAFC), // Safe static value matching PrimaryDarkGreen in dark mode
-    background = Color(0xFF0F172A), // Premium dark slate background
-    surface = Color(0xFF1E293B),    // Slate-800 container surface
-    onPrimary = Color.Black,
-    onSecondary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White
+    primary = md_theme_dark_primary,
+    onPrimary = md_theme_dark_onPrimary,
+    primaryContainer = md_theme_dark_primary.copy(alpha = 0.2f),
+    secondary = AccentGreen,
+    tertiary = AccentGreen,
+    background = md_theme_dark_background,
+    surface = md_theme_dark_surface,
+    onBackground = md_theme_dark_onBackground,
+    onSurface = md_theme_dark_onSurface,
+    onSurfaceVariant = md_theme_dark_onSurfaceVariant,
+    outline = md_theme_dark_outline,
+    error = md_theme_dark_error
   )
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = PrimaryGreen,
-    secondary = Color(0xFF0F172A), // Safe static value matching PrimaryDarkGreen in light mode
+    primary = md_theme_light_primary,
+    onPrimary = md_theme_light_onPrimary,
+    primaryContainer = md_theme_light_primary.copy(alpha = 0.1f),
+    secondary = Color(0xFF0F172A),
     tertiary = AccentGreen,
-    background = Color(0xFFF8FAFC), // Safe static value matching LightBgGreen in light mode
-    surface = Color(0xFFFFFFFF),    // Safe static value matching SurfaceLowest in light mode
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color(0xFF0F172A), // Safe static value matching TextDark in light mode
-    onSurface = Color(0xFF0F172A),    // Safe static value matching TextDark in light mode
-    surfaceVariant = Color.White,
-    onSurfaceVariant = Color(0xFF334155), // Modern Slate-700 for high-contrast secondary texts
-    outline = Color(0xFF94A3B8),         // Modern Slate-400 for neat outlines
-    outlineVariant = Color(0xFFCBD5E1)   // Modern Slate-300 for soft dividers
+    background = md_theme_light_background,
+    surface = md_theme_light_surface,
+    onBackground = md_theme_light_onBackground,
+    onSurface = md_theme_light_onSurface,
+    onSurfaceVariant = md_theme_light_onSurfaceVariant,
+    outline = md_theme_light_outline,
+    outlineVariant = Color(0xFFCBD5E1)
   )
 
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is disabled by default to maintain the gorgeous green signature branding
+  // Dynamic color is disabled by default to maintain the gorgeous custom branding
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {

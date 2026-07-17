@@ -6343,13 +6343,13 @@ fun ReportsBackupScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFF7F9FA), RoundedCornerShape(8.dp))
+                                    .background(SoftBgGreen, RoundedCornerShape(8.dp))
                                     .padding(8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(student.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Black)
+                                    Text(student.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                                     Text("المجموعة: $groupName", fontSize = 11.sp, color = TextGray)
                                     student.deletedAt?.let {
                                         Text("تاريخ الحذف: ${DateUtils.formatDateForDisplay(it.split(" ")[0])}", fontSize = 10.sp, color = TextGray)
@@ -6759,7 +6759,7 @@ fun StartNewAcademicYearDialog(
                                     text = "الخطوة الأولى: تحديد بيانات العام الدراسي الجديد",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                                    color = TextDark
                                 )
                                 Text(
                                     text = "الرجاء تأكيد تسمية العام الجديد وتواريخ بدايته ونهايته. سيقوم هذا الإجراء بأرشفة العام الحالي (${currentYearLabel}) وجعله غير نشط.",
@@ -6879,7 +6879,7 @@ fun StartNewAcademicYearDialog(
                                     text = "الخطوة الثانية: تحديد صفوف الوجهة والطلاب",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                                    color = TextDark
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
@@ -6930,7 +6930,7 @@ fun StartNewAcademicYearDialog(
                                                                 text = group.name,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 14.sp,
-                                                                color = Color.Black
+                                                                color = TextDark
                                                             )
                                                             Text(
                                                                 text = "(${groupStudentsList.size} طالب)",
@@ -7008,7 +7008,7 @@ fun StartNewAcademicYearDialog(
                                     text = "الخطوة الثالثة: مراجعة ملخص الترحيل والتأكيد",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                                    color = TextDark
                                 )
                                 Text(
                                     text = "الرجاء مراجعة الإجراءات الإجمالية بالأسفل جيداً قبل التنفيذ الفعلي للسنة الدراسية الجديدة.",
@@ -7017,9 +7017,9 @@ fun StartNewAcademicYearDialog(
                                 )
 
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                                    colors = CardDefaults.cardColors(containerColor = SurfaceLowest),
                                     shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+                                    border = BorderStroke(1.dp, TextGray.copy(alpha = 0.5f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
@@ -7031,7 +7031,7 @@ fun StartNewAcademicYearDialog(
                                         
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             Text("سنة دراسية جديدة مضافة:", fontSize = 12.sp, color = TextGray)
-                                            Text(newYearLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Black)
+                                            Text(newYearLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             Text("عدد الطلاب المنتقلون لمجموعات جديدة:", fontSize = 12.sp, color = TextGray)
@@ -7078,20 +7078,20 @@ fun StartNewAcademicYearDialog(
                     if (currentStep > 1) {
                         Button(
                             onClick = { currentStep-- },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.buttonColors(containerColor = SoftBgGreen),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("السابق", color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("السابق", color = TextDark, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Button(
                             onClick = { onDismissRequest() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.buttonColors(containerColor = SoftBgGreen),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("إلغاء", color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("إلغاء", color = TextDark, fontWeight = FontWeight.Bold)
                         }
                     }
 
