@@ -15,7 +15,7 @@ private val DarkColorScheme =
   darkColorScheme(
     primary = AccentGreen,
     secondary = PrimaryGreen,
-    tertiary = PrimaryDarkGreen,
+    tertiary = Color(0xFFF8FAFC), // Safe static value matching PrimaryDarkGreen in dark mode
     background = Color(0xFF0F172A), // Premium dark slate background
     surface = Color(0xFF1E293B),    // Slate-800 container surface
     onPrimary = Color.Black,
@@ -27,14 +27,14 @@ private val DarkColorScheme =
 private val LightColorScheme =
   lightColorScheme(
     primary = PrimaryGreen,
-    secondary = PrimaryDarkGreen,
+    secondary = Color(0xFF0F172A), // Safe static value matching PrimaryDarkGreen in light mode
     tertiary = AccentGreen,
-    background = LightBgGreen,
-    surface = SurfaceLowest,
+    background = Color(0xFFF8FAFC), // Safe static value matching LightBgGreen in light mode
+    surface = Color(0xFFFFFFFF),    // Safe static value matching SurfaceLowest in light mode
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = TextDark,
-    onSurface = TextDark,
+    onBackground = Color(0xFF0F172A), // Safe static value matching TextDark in light mode
+    onSurface = Color(0xFF0F172A),    // Safe static value matching TextDark in light mode
     surfaceVariant = Color.White,
     onSurfaceVariant = Color(0xFF334155), // Modern Slate-700 for high-contrast secondary texts
     outline = Color(0xFF94A3B8),         // Modern Slate-400 for neat outlines
@@ -43,18 +43,21 @@ private val LightColorScheme =
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = false,
+  darkTheme: Boolean = isSystemInDarkTheme(),
   // Dynamic color is disabled by default to maintain the gorgeous green signature branding
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
+  // Update the global state immediately before composition runs so other color getters resolve correctly
+  isDarkThemeGlobal = darkTheme
+
   val colorScheme =
     when {
       dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
         val context = LocalContext.current
-        dynamicLightColorScheme(context)
+        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
       }
-
+      darkTheme -> DarkColorScheme
       else -> LightColorScheme
     }
 

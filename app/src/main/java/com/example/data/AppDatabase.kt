@@ -145,7 +145,7 @@ class StringListConverter {
         WithdrawnStudent::class,
         DroppedStudent::class
     ],
-    version = 15,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class, EnumConverters::class, StringListConverter::class)
@@ -345,10 +345,10 @@ abstract class AppDatabase : RoomDatabase() {
                         )
                     """.trimIndent())
 
-                    // 2. Insert default year "2025/2026"
+                    // 2. Insert default year "2026/2027"
                     database.execSQL("""
                         INSERT INTO `academic_years` (`yearLabel`, `startDate`, `endDate`, `isCurrent`, `status`)
-                        VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
+                        VALUES ('2026/2027', '2026-09-01', '2027-06-30', 1, 'active')
                     """.trimIndent())
 
                     // 3. Create enrollments table
@@ -509,6 +509,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE `daily_notes` ADD COLUMN `attachments` TEXT NOT NULL DEFAULT ''")
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_15_16: Failed to add attachments column to daily_notes table", e)
+                }
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("""
+                        UPDATE `academic_years` 
+                        SET `yearLabel` = '2026/2027', `startDate` = '2026-09-01', `endDate` = '2027-06-30' 
+                        WHERE `yearLabel` = '2025/2026'
+                    """.trimIndent())
+                } catch (e: Exception) {
+                    Timber.e(e, "MIGRATION_16_17: Failed to update academic year to 2026/2027", e)
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -516,14 +540,14 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "teacher_manager_db"
                 )
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
                         try {
                             db.execSQL("""
                                 INSERT INTO `academic_years` (`yearLabel`, `startDate`, `endDate`, `isCurrent`, `status`)
-                                VALUES ('2025/2026', '2025-09-01', '2026-06-30', 1, 'active')
+                                VALUES ('2026/2027', '2026-09-01', '2027-06-30', 1, 'active')
                             """.trimIndent())
                         } catch (e: Exception) {
                             Timber.e(e, "AppDatabase onCreate seeding failed")

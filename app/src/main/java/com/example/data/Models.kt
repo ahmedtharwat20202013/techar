@@ -148,7 +148,8 @@ data class DailyNote(
     val date: String, // YYYY-MM-DD format
     val sessionNumber: Int,
     val content: String,
-    val academicYearId: Int = 1
+    val academicYearId: Int = 1,
+    val attachments: String = ""
 )
 
 @Entity(

@@ -692,14 +692,15 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         return repository.getDailyNote(groupId, date)
     }
 
-    fun saveDailyNote(groupId: Int, date: String, sessionNumber: Int, content: String) {
+    fun saveDailyNote(groupId: Int, date: String, sessionNumber: Int, content: String, attachments: String = "") {
         viewModelScope.launch {
             repository.insertDailyNote(
                 DailyNote(
                     groupId = groupId,
                     date = date,  // <-- استخدم date المُمرر
                     sessionNumber = sessionNumber,
-                    content = content
+                    content = content,
+                    attachments = attachments
                 )
             )
         }
@@ -958,7 +959,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                 val totalDue = paymentsList.filter { !it.isPaid }.sumOf { it.amountDue }
                 
                 val currentYear = repository.currentAcademicYearFlow.first()
-                val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+                val currentYearLabel = currentYear?.yearLabel ?: "2026/2027"
                 
                 val dropped = DroppedStudent(
                     originalStudentId = studentId,
@@ -1004,7 +1005,7 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         viewModelScope.launch {
             try {
                 val currentYear = repository.currentAcademicYearFlow.first()
-                val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+                val currentYearLabel = currentYear?.yearLabel ?: "2026/2027"
                 
                 val enrollmentsToInsert = mutableListOf<Enrollment>()
                 val oldYearEnrollmentsToUpdate = mutableListOf<Enrollment>()

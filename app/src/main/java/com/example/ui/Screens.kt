@@ -47,6 +47,8 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.*
 import com.example.ui.theme.*
 import com.example.viewmodel.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +65,90 @@ fun isValidEgyptianPhoneNumber(num: String): Boolean {
     val clean = num.trim().replace(" ", "").replace("-", "")
     val regex = "^(\\+?2?0?)?1[0-2,5][0-9]{8}$".toRegex()
     return clean.matches(regex)
+}
+
+fun copyUriToInternalStorage(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val contentResolver = context.contentResolver
+        var fileName = "attachment_${System.currentTimeMillis()}"
+        
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1 && cursor.moveToFirst()) {
+                fileName = cursor.getString(nameIndex)
+            }
+        }
+        
+        val attachmentsDir = java.io.File(context.filesDir, "attachments")
+        if (!attachmentsDir.exists()) {
+            attachmentsDir.mkdirs()
+        }
+        
+        val targetFile = java.io.File(attachmentsDir, fileName)
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            java.io.FileOutputStream(targetFile).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+        targetFile.absolutePath
+    } catch (e: Exception) {
+        android.util.Log.e("AttachmentCopy", "Error copying file", e)
+        null
+    }
+}
+
+fun getFileIconAndColor(filePath: String): Pair<String, Color> {
+    val lowercasePath = filePath.lowercase()
+    return when {
+        lowercasePath.endsWith(".png") || lowercasePath.endsWith(".jpg") || lowercasePath.endsWith(".jpeg") || lowercasePath.endsWith(".gif") || lowercasePath.endsWith(".webp") -> {
+            Pair("🖼️", Color(0xFF4CAF50))
+        }
+        lowercasePath.endsWith(".pdf") -> {
+            Pair("📄", Color(0xFFF44336))
+        }
+        lowercasePath.endsWith(".ppt") || lowercasePath.endsWith(".pptx") -> {
+            Pair("📊", Color(0xFFFF5722))
+        }
+        lowercasePath.endsWith(".doc") || lowercasePath.endsWith(".docx") || lowercasePath.endsWith(".txt") -> {
+            Pair("📝", Color(0xFF2196F3))
+        }
+        lowercasePath.endsWith(".mp4") || lowercasePath.endsWith(".mkv") || lowercasePath.endsWith(".avi") || lowercasePath.endsWith(".3gp") -> {
+            Pair("🎬", Color(0xFF9C27B0))
+        }
+        else -> {
+            Pair("📎", Color(0xFF607D8B))
+        }
+    }
+}
+
+fun openAttachment(context: android.content.Context, filePath: String) {
+    try {
+        val file = java.io.File(filePath)
+        if (!file.exists()) {
+            Toast.makeText(context, "الملف غير موجود أو تم حذفه", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val authority = "com.aistudio.teachermanager.qyhwpx.fileprovider"
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
+        
+        val mimeType = context.contentResolver.getType(uri) ?: when {
+            filePath.endsWith(".pdf") -> "application/pdf"
+            filePath.endsWith(".doc") || filePath.endsWith(".docx") -> "application/msword"
+            filePath.endsWith(".ppt") || filePath.endsWith(".pptx") -> "application/vnd.ms-powerpoint"
+            filePath.endsWith(".mp4") || filePath.endsWith(".mkv") || filePath.endsWith(".avi") -> "video/*"
+            filePath.endsWith(".png") || filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") -> "image/*"
+            else -> "*/*"
+        }
+        
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeType)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "عرض الملف بواسطة"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "لا يوجد تطبيق مناسب لفتح هذا الملف", Toast.LENGTH_SHORT).show()
+    }
 }
 
 // --- SCREEN ORCHESTRATOR ROUTING ROUTES ---
@@ -2068,6 +2154,28 @@ fun GroupDetailScreen(
                         // --- DAILY LESSON NOTES TAB ---
                         val todayDateStr = remember { DateUtils.formatStandard("yyyy-MM-dd") }
                         var todayNoteText by remember { mutableStateOf("") }
+                        val selectedAttachments = remember { mutableStateListOf<Uri>() }
+
+                        val filePickerLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.GetMultipleContents()
+                        ) { uris ->
+                            selectedAttachments.addAll(uris)
+                        }
+
+                        val permissionsToRequest = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            arrayOf(
+                                android.Manifest.permission.READ_MEDIA_IMAGES,
+                                android.Manifest.permission.READ_MEDIA_VIDEO
+                            )
+                        } else {
+                            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                        }
+
+                        val permissionLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.RequestMultiplePermissions()
+                        ) { _ ->
+                            filePickerLauncher.launch("*/*")
+                        }
 
                         LazyColumn(
                             modifier = Modifier
@@ -2106,16 +2214,104 @@ fun GroupDetailScreen(
                                             maxLines = 10
                                         )
 
+                                        // Attachment picker trigger and display
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "مرفقات مذكرة الحصة (${selectedAttachments.size})",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Gray
+                                            )
+                                            
+                                            IconButton(
+                                                onClick = {
+                                                    val allGranted = permissionsToRequest.all {
+                                                        androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                    }
+                                                    if (allGranted) {
+                                                        filePickerLauncher.launch("*/*")
+                                                    } else {
+                                                        permissionLauncher.launch(permissionsToRequest)
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.AttachFile, contentDescription = "إضافة مرفقات", tint = PrimaryGreen)
+                                            }
+                                        }
+
+                                        if (selectedAttachments.isNotEmpty()) {
+                                            LazyRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                items(selectedAttachments) { uri ->
+                                                    var displayName = "ملف"
+                                                    try {
+                                                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                                                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                                            if (nameIndex != -1 && cursor.moveToFirst()) {
+                                                                displayName = cursor.getString(nameIndex)
+                                                            }
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("AttachmentName", "Error reading file name", e)
+                                                    }
+                                                    Card(
+                                                        colors = CardDefaults.cardColors(containerColor = LightBgGreen),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.widthIn(max = 130.dp)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = displayName,
+                                                                fontSize = 11.sp,
+                                                                color = PrimaryDarkGreen,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.weight(1f)
+                                                            )
+                                                            IconButton(
+                                                                onClick = { selectedAttachments.remove(uri) },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Close,
+                                                                    contentDescription = "حذف",
+                                                                    tint = DangerRed,
+                                                                    modifier = Modifier.size(12.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         Button(
                                             onClick = {
                                                 if (todayNoteText.isNotBlank()) {
+                                                    val copiedPaths = selectedAttachments.mapNotNull { uri ->
+                                                        copyUriToInternalStorage(context, uri)
+                                                    }
+                                                    val attachmentsString = copiedPaths.joinToString(",")
+                                                    
                                                     viewModel.saveDailyNote(
                                                         groupId = groupId,
                                                         date = todayDateStr,
                                                         sessionNumber = 0,
-                                                        content = todayNoteText
+                                                        content = todayNoteText,
+                                                        attachments = attachmentsString
                                                     )
                                                     todayNoteText = ""
+                                                    selectedAttachments.clear()
                                                     Toast.makeText(context, "تم حفظ الملاحظة بنجاح", Toast.LENGTH_SHORT).show()
                                                 } else {
                                                     Toast.makeText(context, "يرجى كتابة محتوى الملاحظة أولاً", Toast.LENGTH_SHORT).show()
@@ -2171,6 +2367,57 @@ fun GroupDetailScreen(
                                                 fontSize = 12.sp,
                                                 color = Color.DarkGray
                                             )
+
+                                            // Render saved attachments list
+                                            if (!note.attachments.isNullOrBlank()) {
+                                                val attachmentPaths = note.attachments.split(",").filter { it.isNotBlank() }
+                                                if (attachmentPaths.isNotEmpty()) {
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text(
+                                                        text = "المرفقات:",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.Gray
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    LazyRow(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        items(attachmentPaths) { filePath ->
+                                                            val (typeLabel, typeColor) = getFileIconAndColor(filePath)
+                                                            val fileName = filePath.substringAfterLast("/")
+                                                            Card(
+                                                                onClick = { openAttachment(context, filePath) },
+                                                                colors = CardDefaults.cardColors(containerColor = typeColor.copy(alpha = 0.1f)),
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                border = BorderStroke(1.dp, typeColor.copy(alpha = 0.3f))
+                                                            ) {
+                                                                Row(
+                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        text = typeLabel,
+                                                                        fontSize = 11.sp,
+                                                                        color = typeColor,
+                                                                        fontWeight = FontWeight.Bold
+                                                                    )
+                                                                    Text(
+                                                                        text = fileName,
+                                                                        fontSize = 11.sp,
+                                                                        color = Color.DarkGray,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis,
+                                                                        modifier = Modifier.widthIn(max = 120.dp)
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -6290,7 +6537,7 @@ fun StartNewAcademicYearDialog(
     var currentStep by remember { mutableStateOf(1) }
 
     // --- STEP 1: New Year Metadata ---
-    val currentYearLabel = currentYear?.yearLabel ?: "2025/2026"
+    val currentYearLabel = currentYear?.yearLabel ?: "2026/2027"
     val suggestedLabel = remember(currentYearLabel) {
         try {
             val parts = currentYearLabel.split("/")
@@ -7605,7 +7852,7 @@ fun exportStudentProfilePdfDisabled(
         canvas1.drawText("📞 هاتف ولي الأمر: ${student.parentPhone}", 680f, 275f, textPaint)
         
         // Enrolled
-        canvas1.drawText("🗓️ الفترة الدراسية: العام الدراسي 2025 / 2026", 680f, 310f, textPaint)
+        canvas1.drawText("🗓️ الفترة الدراسية: العام الدراسي 2026 / 2027", 680f, 310f, textPaint)
         
         // Dynamic evaluation / Recommendation Text
         textPaint.color = 0xFFFCD34D.toInt() // gold/light orange text for emphasis

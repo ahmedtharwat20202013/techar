@@ -18,7 +18,7 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         val groupId = intent.getIntExtra("group_id", 0)
         val groupName = intent.getStringExtra("group_name") ?: "المجموعة"
 
-        val channelId = "session_alerts_channel_v3" // Using v3 to force update sound and vibration configuration on device
+        val channelId = "session_alerts_channel_v4" // Using v4 to force update sound and vibration configuration on device
         val notificationId = sessionId xor groupId xor 98765
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -35,9 +35,9 @@ class SessionAlarmReceiver : BroadcastReceiver() {
                 "تنبيهات الحصص",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "قناة لإرسال إشعارات وتنبيهات قبل بدء الحصص"
+                description = "قناة لإرسال إشعارات وتنبيهات قبل بدء الحصص بـ 15 دقيقة"
                 enableVibration(true)
-                vibrationPattern = longArrayOf(100, 200, 300, 400, 500, 400, 300, 200, 400)
+                vibrationPattern = longArrayOf(0, 500, 250, 500)
                 setSound(soundUri, audioAttributes)
             }
             notificationManager.createNotificationChannel(channel)
@@ -60,15 +60,16 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         // Notification Builder
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // System alarm icon
-            .setContentTitle("تنبيه بدء الحصة الرسمية")
-            .setContentText("أهلاً أستاذنا العزيز، سوف تبدأ حصة بعد 5 دقائق من الآن لمجموعة $groupName")
+            .setContentTitle("تنبيه بدء الحصة (متبقي 15 دقيقة)")
+            .setContentText("أهلاً أستاذنا العزيز، سوف تبدأ حصة بعد 15 دقيقة من الآن لمجموعة $groupName")
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("أهلاً أستاذنا العزيز، سوف تبدأ حصة بعد 5 دقائق من الآن لمجموعة $groupName")
+                .bigText("أهلاً أستاذنا العزيز، سوف تبدأ حصة بعد 15 دقيقة من الآن لمجموعة $groupName")
             )
             .setSound(soundUri)
-            .setVibrate(longArrayOf(100, 200, 300, 400, 500, 400, 300, 200, 400))
+            .setVibrate(longArrayOf(0, 500, 250, 500))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL) // Enables default sound & vibration fallback if channel settings are somehow bypassed
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Shows fully on locked screen
+            .setDefaults(NotificationCompat.DEFAULT_ALL) // Enables default sound & vibration fallback if channel settings are bypassed
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingOpenIntent)
