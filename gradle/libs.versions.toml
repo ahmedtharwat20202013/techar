@@ -39,8 +39,10 @@ roborazzi = "1.59.0"
 firebaseBom = "34.12.0"
 secretsGradlePlugin = "2.0.1"
 timber = "5.0.1"
+postgresql = "42.2.23"
 
 [libraries]
+postgresql = { group = "org.postgresql", name = "postgresql", version.ref = "postgresql" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

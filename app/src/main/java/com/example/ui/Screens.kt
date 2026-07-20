@@ -9463,34 +9463,18 @@ fun GroupFilesTab(
     var showEditNotesDialog by remember { mutableStateOf<GroupFile?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf<GroupFile?>(null) }
     
+    var pendingFilesToUpload by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var uploadNotesText by remember { mutableStateOf("") }
+    
     LaunchedEffect(groupId) {
         viewModel.loadGroupFiles(groupId)
     }
     
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val absolutePath = copyUriToGroupFiles(context, uri)
-            if (absolutePath != null) {
-                val fileObj = java.io.File(absolutePath)
-                val mime = context.contentResolver.getType(uri) ?: "*/*"
-                val type = determineFileType(absolutePath, mime)
-                val newFile = GroupFile(
-                    groupId = groupId,
-                    fileName = fileObj.name,
-                    fileUri = absolutePath,
-                    fileType = type,
-                    fileSize = fileObj.length(),
-                    mimeType = mime,
-                    uploadDate = com.example.data.DateUtils.formatStandard("yyyy-MM-dd HH:mm"),
-                    notes = ""
-                )
-                viewModel.addGroupFile(newFile)
-                Toast.makeText(context, "تم رفع الملف بنجاح", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "فشل في حفظ الملف", Toast.LENGTH_SHORT).show()
-            }
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            pendingFilesToUpload = uris
         }
     }
     
@@ -9562,7 +9546,10 @@ fun GroupFilesTab(
         }
         
         LargeFloatingActionButton(
-            onClick = { filePickerLauncher.launch("*/*") },
+            onClick = {
+                com.example.MainActivity.isPickingFile = true
+                filePickerLauncher.launch("*/*")
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 20.dp, end = 20.dp)
@@ -9573,13 +9560,154 @@ fun GroupFilesTab(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "رفع ملف جديد",
+                contentDescription = "رفع ملفات جديدة",
                 modifier = Modifier.size(28.dp),
                 tint = Color.White
             )
         }
     }
     
+    // --- DIALOG: CONFIRM MULTIPLE UPLOAD WITH NOTES ---
+    if (pendingFilesToUpload.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = {
+                pendingFilesToUpload = emptyList()
+                uploadNotesText = ""
+            },
+            title = {
+                Text(
+                    text = "تأكيد رفع الملفات (${pendingFilesToUpload.size})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = PrimaryDarkGreen,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "الملفات المختارة للرفع:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextGray,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Right
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 120.dp)
+                            .background(SoftBgGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(pendingFilesToUpload) { uri ->
+                                val (name, size) = getFileInfo(context, uri)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = formatFileSize(size),
+                                        fontSize = 11.sp,
+                                        color = TextGray,
+                                        textAlign = TextAlign.Left
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = PrimaryDarkGreen,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                        textAlign = TextAlign.Right
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Text(
+                        text = "إضافة ملاحظات لجميع هذه الملفات (اختياري):",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Right
+                    )
+                    OutlinedTextField(
+                        value = uploadNotesText,
+                        onValueChange = { uploadNotesText = it },
+                        placeholder = { Text("اكتب ملاحظة أو وصف للملفات...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        maxLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        var successCount = 0
+                        pendingFilesToUpload.forEach { uri ->
+                            val absolutePath = copyUriToGroupFiles(context, uri)
+                            if (absolutePath != null) {
+                                val fileObj = java.io.File(absolutePath)
+                                val mime = context.contentResolver.getType(uri) ?: "*/*"
+                                val type = determineFileType(absolutePath, mime)
+                                val newFile = GroupFile(
+                                    groupId = groupId,
+                                    fileName = fileObj.name,
+                                    fileUri = absolutePath,
+                                    fileType = type,
+                                    fileSize = fileObj.length(),
+                                    mimeType = mime,
+                                    uploadDate = com.example.data.DateUtils.formatStandard("yyyy-MM-dd HH:mm"),
+                                    notes = uploadNotesText
+                                )
+                                viewModel.addGroupFile(newFile)
+                                successCount++
+                            }
+                        }
+                        if (successCount > 0) {
+                            Toast.makeText(context, "تم حفظ $successCount ملف بنجاح", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "فشل في حفظ الملفات", Toast.LENGTH_SHORT).show()
+                        }
+                        pendingFilesToUpload = emptyList()
+                        uploadNotesText = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("رفع وتأكيد")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingFilesToUpload = emptyList()
+                        uploadNotesText = ""
+                    }
+                ) {
+                    Text("إلغاء", color = TextGray)
+                }
+            }
+        )
+    }
+    
+    // --- DIALOG: EDIT SINGLE FILE NOTES ---
     showEditNotesDialog?.let { file ->
         var notesText by remember { mutableStateOf(file.notes) }
         AlertDialog(
@@ -9633,12 +9761,22 @@ fun GroupFilesTab(
         )
     }
     
+    // --- DIALOG: DELETE FILE CONFIRMATION WITH PIN IF ENABLED ---
     showDeleteConfirmDialog?.let { file ->
+        val pinStorage = remember { PinStorage(context) }
+        val isPinRequired = pinStorage.isPinEnabled() && pinStorage.hasPin()
+        var enteredPin by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf(false) }
+
         AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = null },
+            onDismissRequest = { 
+                showDeleteConfirmDialog = null 
+                enteredPin = ""
+                pinError = false
+            },
             title = {
                 Text(
-                    text = "حذف الملف؟",
+                    text = if (isPinRequired) "🔒 تأكيد حذف الملف بـ PIN" else "حذف الملف؟",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = DangerRed,
@@ -9647,28 +9785,91 @@ fun GroupFilesTab(
                 )
             },
             text = {
-                Text(
-                    text = "هل أنت متأكد من رغبتك في حذف الملف \"${file.fileName}\" نهائياً من الجهاز وقاعدة البيانات؟",
-                    fontSize = 13.sp,
-                    color = TextGray,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Right
-                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "هل أنت متأكد من رغبتك في حذف الملف \"${file.fileName}\" نهائياً؟",
+                        fontSize = 13.sp,
+                        color = TextGray,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Right
+                    )
+                    
+                    if (isPinRequired) {
+                        Text(
+                            text = "يرجى إدخال رمز PIN للتأكيد من صلاحية الحذف:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryDarkGreen,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Right
+                        )
+                        OutlinedTextField(
+                            value = enteredPin,
+                            onValueChange = { 
+                                if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                                    enteredPin = it
+                                    pinError = false
+                                }
+                            },
+                            placeholder = { Text("رمز PIN (4 أرقام)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            visualTransformation = PasswordVisualTransformation(),
+                            shape = RoundedCornerShape(8.dp),
+                            isError = pinError,
+                            trailingIcon = {
+                                if (pinError) {
+                                    Icon(Icons.Default.Error, "خطأ", tint = DangerRed)
+                                }
+                            }
+                        )
+                        if (pinError) {
+                            Text(
+                                text = "رمز PIN غير صحيح!",
+                                color = DangerRed,
+                                fontSize = 11.sp,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Right
+                            )
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteGroupFile(file)
-                        showDeleteConfirmDialog = null
-                        Toast.makeText(context, "تم حذف الملف بنجاح", Toast.LENGTH_SHORT).show()
+                        if (isPinRequired) {
+                            if (pinStorage.verifyPin(enteredPin)) {
+                                viewModel.deleteGroupFile(file)
+                                showDeleteConfirmDialog = null
+                                enteredPin = ""
+                                pinError = false
+                                Toast.makeText(context, "تم حذف الملف بنجاح", Toast.LENGTH_SHORT).show()
+                            } else {
+                                pinError = true
+                            }
+                        } else {
+                            viewModel.deleteGroupFile(file)
+                            showDeleteConfirmDialog = null
+                            Toast.makeText(context, "تم حذف الملف بنجاح", Toast.LENGTH_SHORT).show()
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
+                    enabled = !isPinRequired || enteredPin.length == 4
                 ) {
                     Text("حذف نهائي", color = Color.White)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = null }) {
+                TextButton(onClick = { 
+                    showDeleteConfirmDialog = null 
+                    enteredPin = ""
+                    pinError = false
+                }) {
                     Text("إلغاء", color = TextGray)
                 }
             }
@@ -9750,6 +9951,14 @@ fun FileCard(
                 }
                 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onClick) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "عرض الملف",
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     IconButton(onClick = onEditNotes) {
                         Icon(
                             imageVector = Icons.Default.Edit,
@@ -9803,6 +10012,29 @@ fun FileCard(
     }
 }
 
+fun getFileInfo(context: android.content.Context, uri: Uri): Pair<String, Long> {
+    var name = "file_${System.currentTimeMillis()}"
+    var size = 0L
+    try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (cursor.moveToFirst()) {
+                if (nameIndex != -1) {
+                    val displayName = cursor.getString(nameIndex)
+                    if (!displayName.isNullOrBlank()) {
+                        name = displayName
+                    }
+                }
+                if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
+            }
+        }
+    } catch (e: Exception) {
+        // Fallback
+    }
+    return Pair(name, size)
+}
+
 fun copyUriToGroupFiles(context: android.content.Context, uri: Uri): String? {
     return try {
         val contentResolver = context.contentResolver
@@ -9811,7 +10043,10 @@ fun copyUriToGroupFiles(context: android.content.Context, uri: Uri): String? {
         contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (nameIndex != -1 && cursor.moveToFirst()) {
-                fileName = cursor.getString(nameIndex)
+                val displayName = cursor.getString(nameIndex)
+                if (!displayName.isNullOrBlank()) {
+                    fileName = displayName
+                }
             }
         }
         
