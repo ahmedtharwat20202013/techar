@@ -10,11 +10,12 @@ class ActivationStorage(context: Context) {
         return prefs.getBoolean(KEY_IS_ACTIVATED, false)
     }
 
-    fun setActivated(activated: Boolean, customerName: String? = null, licenseKey: String? = null) {
+    fun setActivated(activated: Boolean, customerName: String? = null, licenseKey: String? = null, expireDate: String? = null) {
         prefs.edit().apply {
             putBoolean(KEY_IS_ACTIVATED, activated)
             putString(KEY_CUSTOMER_NAME, customerName)
             putString(KEY_LICENSE_KEY, licenseKey)
+            putString(KEY_EXPIRE_DATE, expireDate)
             putLong(KEY_ACTIVATION_TIME, System.currentTimeMillis())
             apply()
         }
@@ -28,14 +29,38 @@ class ActivationStorage(context: Context) {
         return prefs.getString(KEY_LICENSE_KEY, null)
     }
 
+    fun getExpireDate(): String? {
+        return prefs.getString(KEY_EXPIRE_DATE, null)
+    }
+
+    fun setExpireDate(expireDate: String?) {
+        prefs.edit().putString(KEY_EXPIRE_DATE, expireDate).apply()
+    }
+
     fun clearActivation() {
-        prefs.edit().clear().apply()
+        prefs.edit().apply {
+            putBoolean(KEY_IS_ACTIVATED, false)
+            putString(KEY_CUSTOMER_NAME, null)
+            putString(KEY_LICENSE_KEY, null)
+            putString(KEY_EXPIRE_DATE, null)
+            putLong(KEY_ACTIVATION_TIME, 0L)
+            apply()
+        }
+    }
+
+    fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
     }
 
     companion object {
-        private const val KEY_IS_ACTIVATED = "is_activated"
+        const val KEY_IS_ACTIVATED = "is_activated"
         private const val KEY_CUSTOMER_NAME = "customer_name"
         private const val KEY_LICENSE_KEY = "license_key"
         private const val KEY_ACTIVATION_TIME = "activation_time"
+        private const val KEY_EXPIRE_DATE = "expire_date"
     }
 }

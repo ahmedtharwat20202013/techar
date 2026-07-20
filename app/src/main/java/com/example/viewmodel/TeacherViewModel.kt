@@ -233,7 +233,77 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val activationStorage = com.example.data.storage.ActivationStorage(application)
+
+    private val _subscriptionExpiryDate = MutableStateFlow<String?>(activationStorage.getExpireDate())
+    val subscriptionExpiryDate = _subscriptionExpiryDate.asStateFlow()
+
+    private val _subscriptionCustomerName = MutableStateFlow<String?>(activationStorage.getActivatedCustomerName())
+    val subscriptionCustomerName = _subscriptionCustomerName.asStateFlow()
+
+    private val _subscriptionLicenseKey = MutableStateFlow<String?>(activationStorage.getActivatedLicenseKey())
+    val subscriptionLicenseKey = _subscriptionLicenseKey.asStateFlow()
+
+    fun calculateDaysRemaining(expiryDateStr: String?): Int? {
+        if (expiryDateStr.isNullOrBlank()) return null
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val expiryDate = sdf.parse(expiryDateStr.split(" ")[0].split("T")[0])
+            val todayStr = sdf.format(Date())
+            val today = sdf.parse(todayStr)
+            if (expiryDate != null && today != null) {
+                val diffMs = expiryDate.time - today.time
+                val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffMs)
+                days.toInt()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private val _subscriptionDaysRemaining = MutableStateFlow<Int?>(calculateDaysRemaining(activationStorage.getExpireDate()))
+    val subscriptionDaysRemaining = _subscriptionDaysRemaining.asStateFlow()
+
+    fun refreshSubscriptionStatus() {
+        viewModelScope.launch {
+            val name = activationStorage.getActivatedCustomerName()
+            val key = activationStorage.getActivatedLicenseKey()
+            if (!name.isNullOrBlank() && !key.isNullOrBlank()) {
+                try {
+                    val updatedLicense = com.example.data.service.PostgresDatabaseService.getLicense(name, key)
+                    if (updatedLicense != null) {
+                        // Dynamically validate the license attributes
+                        val hiddenData = com.example.utils.DeviceUtils.collectHiddenData(application)
+                        val validationResult = com.example.data.validation.ActivationValidator.validateLicense(
+                            updatedLicense,
+                            hiddenData.fingerprint
+                        )
+                        
+                        if (validationResult is com.example.data.validation.ValidationResult.Success) {
+                            activationStorage.setExpireDate(updatedLicense.expireDate)
+                            _subscriptionExpiryDate.value = updatedLicense.expireDate
+                            _subscriptionDaysRemaining.value = calculateDaysRemaining(updatedLicense.expireDate)
+                        } else {
+                            // License has been blocked, expired, or fingerprint changed!
+                            android.util.Log.w("TeacherViewModel", "Dynamic license validation failed: $validationResult. Deactivating app.")
+                            activationStorage.clearActivation()
+                        }
+                    } else {
+                        // License was deleted from the dashboard!
+                        android.util.Log.w("TeacherViewModel", "License has been deleted from control panel. Deactivating app.")
+                        activationStorage.clearActivation()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("TeacherViewModel", "Failed to refresh/validate subscription from Supabase", e)
+                }
+            }
+        }
+    }
+
     init {
+        refreshSubscriptionStatus()
         // Prepopulate with rich dummy data if DB is empty, run automations and cleanup orphan sessions
         viewModelScope.launch {
             repository.prepopulateIfEmpty()

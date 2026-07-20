@@ -440,6 +440,70 @@ fun isSessionSoon(sessionTime: String): Boolean {
 }
 
 
+@Composable
+fun SubscriptionExpiryBanner(
+    daysRemaining: Int?,
+    expiryDate: String?,
+    onRefresh: () -> Unit
+) {
+    if (daysRemaining != null && daysRemaining <= 7) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .testTag("subscription_expiry_banner"),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F0)),
+            border = BorderStroke(1.5.dp, Color(0xFFFFA39E)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFCCC7)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "تحذير انتهاء الاشتراك",
+                        tint = Color(0xFFCF1322),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "تنبيه: اقترب انتهاء صلاحية استخدام التطبيق!",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFCF1322),
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (daysRemaining <= 0) 
+                            "انتهت صلاحية اشتراكك اليوم! يرجى التواصل مع الدعم الفني لتجديد الاشتراك."
+                        else 
+                            "سوف تنتهي صلاحية استخدامك بعد $daysRemaining يوم (بتاريخ: $expiryDate). يرجى التجديد لتجنب توقف الخدمة.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF595959),
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+
 // ==========================================
 // 1. DASHBOARD SCREEN
 // ==========================================
@@ -462,6 +526,9 @@ fun DashboardScreen(
     val currentYear by viewModel.currentAcademicYear.collectAsState()
     val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())
     
+    val daysRemaining by viewModel.subscriptionDaysRemaining.collectAsState()
+    val expiryDate by viewModel.subscriptionExpiryDate.collectAsState()
+
     // Dialog state for selections
     var showAddGroupDialog by rememberSaveable { mutableStateOf(false) }
     var showDashboardAddStudentDialog by rememberSaveable { mutableStateOf(false) }
@@ -487,6 +554,14 @@ fun DashboardScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            SubscriptionExpiryBanner(
+                daysRemaining = daysRemaining,
+                expiryDate = expiryDate,
+                onRefresh = { viewModel.refreshSubscriptionStatus() }
+            )
+        }
+
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -5876,6 +5951,13 @@ fun ReportsBackupScreen(
     val deletedStudents by viewModel.deletedStudents.collectAsState()
     val enrollments by viewModel.enrollments.collectAsState()
 
+    val daysRemaining by viewModel.subscriptionDaysRemaining.collectAsState()
+    val expiryDate by viewModel.subscriptionExpiryDate.collectAsState()
+    val customerName by viewModel.subscriptionCustomerName.collectAsState()
+    val licenseKey by viewModel.subscriptionLicenseKey.collectAsState()
+
+    val daysRemainingVal = daysRemaining
+
     var backupTextState by remember { mutableStateOf("") }
     var restoreTextState by remember { mutableStateOf("") }
     var showCsvSharingSuccess by remember { mutableStateOf(false) }
@@ -6067,6 +6149,165 @@ fun ReportsBackupScreen(
                 fontSize = 12.sp,
                 color = TextGray
             )
+        }
+
+        // --- PREMIUM SUBSCRIPTION SETTINGS & EXPIRY CARD ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                border = BorderStroke(
+                    1.2.dp,
+                    if (daysRemainingVal != null && daysRemainingVal <= 7) Color(0xFFFFA39E) else SoftBgGreen
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("subscription_info_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CardMembership,
+                                contentDescription = null,
+                                tint = if (daysRemainingVal != null && daysRemainingVal <= 7) Color(0xFFCF1322) else PrimaryGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "تفعيل وصلاحية استخدام التطبيق",
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkGreen,
+                                fontSize = 15.sp
+                            )
+                        }
+                        
+                        // Premium Badge
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (daysRemainingVal != null && daysRemainingVal <= 7) Color(0xFFFFF1F0) else SoftBgGreen,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "نسخة مفعلة",
+                                color = if (daysRemainingVal != null && daysRemainingVal <= 7) Color(0xFFCF1322) else PrimaryGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Customer Name
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("اسم العميل:", fontSize = 12.sp, color = TextGray)
+                        Text(customerName ?: "غير معروف", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    }
+
+                    // License Key
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("كود التفعيل:", fontSize = 12.sp, color = TextGray)
+                        Text(licenseKey ?: "غير معروف", fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = TextDark)
+                    }
+
+                    // Expiration Date
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("تاريخ انتهاء الصلاحية:", fontSize = 12.sp, color = TextGray)
+                        Text(expiryDate ?: "غير معروف", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    }
+
+                    // Countdown Warning / Info banner
+                    if (daysRemainingVal != null) {
+                        val isUrgent = daysRemainingVal <= 7
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isUrgent) Color(0xFFFFF1F0) else SoftBgGreen.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isUrgent) Color(0xFFFFA39E) else PrimaryGreen.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isUrgent) Icons.Default.ErrorOutline else Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = if (isUrgent) Color(0xFFCF1322) else PrimaryGreen,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (daysRemainingVal <= 0)
+                                        "سوف تنتهي صلاحية استخدامك بعد: 0 يوم (انتهى اليوم!)"
+                                    else
+                                        "سوف تنتهي صلاحية استخدامك بعد: $daysRemainingVal يوم",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isUrgent) Color(0xFFCF1322) else PrimaryDarkGreen
+                                )
+                            }
+                        }
+                    }
+
+                    // Refresh Button
+                    Button(
+                        onClick = {
+                            viewModel.refreshSubscriptionStatus()
+                            Toast.makeText(context, "جاري تحديث ومزامنة حالة الاشتراك مع السيرفر...", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (daysRemainingVal != null && daysRemainingVal <= 7) Color(0xFFCF1322) else PrimaryGreen
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "تحديث ومزامنة حالة الاشتراك",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // --- SECTION EXPORTER SHARING CHEETS ---

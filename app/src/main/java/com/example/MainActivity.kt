@@ -109,6 +109,18 @@ class MainActivity : ComponentActivity() {
                     val activationStorage = remember { ActivationStorage(this@MainActivity) }
                     var isActivated by remember { mutableStateOf(activationStorage.isActivated()) }
 
+                    androidx.compose.runtime.DisposableEffect(activationStorage) {
+                        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                            if (key == null || key == ActivationStorage.KEY_IS_ACTIVATED) {
+                                isActivated = activationStorage.isActivated()
+                            }
+                        }
+                        activationStorage.registerListener(listener)
+                        onDispose {
+                            activationStorage.unregisterListener(listener)
+                        }
+                    }
+
                     val pinStorage = remember { PinStorage(this@MainActivity) }
                     var isAuthenticated by remember { mutableStateOf(pinStorage.isAuthenticated()) }
                     var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }

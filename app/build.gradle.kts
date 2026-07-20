@@ -18,6 +18,26 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // Parse supabase_config.dart at compile time to bake them into BuildConfig
+    var supabaseUrl = "https://your-supabase-project.supabase.co"
+    var supabaseKey = "your-supabase-anon-key"
+    val configFile = file("${rootDir}/supabase_config.dart")
+    if (configFile.exists()) {
+        val content = configFile.readText()
+        val urlRegex = """SUPABASE_URL\s*=\s*["']([^"']+)["']""".toRegex()
+        val keyRegex = """SUPABASE_ANON_KEY\s*=\s*["']([^"']+)["']""".toRegex()
+        val foundUrl = urlRegex.find(content)?.groupValues?.get(1)
+        val foundKey = keyRegex.find(content)?.groupValues?.get(1)
+        if (!foundUrl.isNullOrBlank() && !foundUrl.contains("PASTE_")) {
+            supabaseUrl = foundUrl
+        }
+        if (!foundKey.isNullOrBlank() && !foundKey.contains("PASTE_")) {
+            supabaseKey = foundKey
+        }
+    }
+    buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+    buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
   }
 
   signingConfigs {
