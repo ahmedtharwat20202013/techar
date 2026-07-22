@@ -53,6 +53,20 @@ import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
 
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    override fun onDestroy() {
+        super.onDestroy()
+        networkCallback?.let { callback ->
+            try {
+                val connectivityManager = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                connectivityManager.unregisterNetworkCallback(callback)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to unregister network callback", e)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Set the global default JVM TimeZone to Egypt/Cairo
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Africa/Cairo"))
@@ -103,6 +117,25 @@ class MainActivity : ComponentActivity() {
             // 2. Instantiate Main Shared ViewModel from Factory
             val factory = TeacherViewModelFactory(repository, application)
             val viewModel = ViewModelProvider(this, factory)[TeacherViewModel::class.java]
+
+            // Monitor network connectivity to trigger subscription validation when internet becomes available
+            try {
+                val connectivityManager = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                val networkRequest = android.net.NetworkRequest.Builder()
+                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: android.net.Network) {
+                        runOnUiThread {
+                            viewModel.refreshSubscriptionStatus()
+                        }
+                    }
+                }
+                networkCallback = callback
+                connectivityManager.registerNetworkCallback(networkRequest, callback)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to register network callback", e)
+            }
 
             setContent {
                 MyApplicationTheme {

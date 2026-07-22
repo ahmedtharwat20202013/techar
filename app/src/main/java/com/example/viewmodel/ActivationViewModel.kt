@@ -5,10 +5,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.DeviceHiddenData
-import com.example.data.service.PostgresDatabaseService
+import com.example.data.service.LicenseService
 import com.example.data.storage.ActivationStorage
-import com.example.data.validation.ActivationValidator
-import com.example.data.validation.ValidationResult
 import com.example.utils.DeviceUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,110 +55,53 @@ class ActivationViewModel : ViewModel() {
             try {
                 // Automatically collect hidden device details for fingerprinting
                 val hiddenData: DeviceHiddenData = DeviceUtils.collectHiddenData(context)
-                val currentFingerprint = hiddenData.fingerprint
 
                 Log.d(TAG, "Attempting subscription activation for: $name with key: $key")
-                Log.d(TAG, "Device Fingerprint: $currentFingerprint")
+                Log.d(TAG, "Device Fingerprint: ${hiddenData.fingerprint}")
 
-                // 1. Fetch license from Supabase (Never direct connection to PostgreSQL)
-                val license = PostgresDatabaseService.getLicense(name, key)
+                // Send request to Cloudflare Worker LicenseService
+                val response = LicenseService.verifyLicense(
+                    customerName = name,
+                    licenseKey = key,
+                    deviceFingerprint = hiddenData.fingerprint,
+                    androidId = hiddenData.androidId,
+                    deviceModel = hiddenData.model,
+                    manufacturer = hiddenData.manufacturer
+                )
 
-                if (license == null) {
-                    // Record attempt
-                    PostgresDatabaseService.saveActivationAttempt(
-                        licenseId = null,
-                        hiddenData = hiddenData,
-                        result = "بيانات الاشتراك غير صحيحة"
-                    )
-                    _statusMessage.value = "بيانات الاشتراك غير صحيحة"
-                    _isLoading.value = false
-                    return@launch
+                if (response.success) {
+                    val expireDate = response.expireDate ?: "2099-12-31"
+                    val storage = ActivationStorage(context)
+                    storage.setActivated(true, name, key, expireDate)
+                    
+                    _isSuccess.value = true
+                    _statusMessage.value = response.message ?: "تم تفعيل الاشتراك بنجاح! جاري الدخول..."
+                    
+                    // Execute success callback to navigate to main app screen
+                    onSuccess()
+                } else {
+                    val errMsg = response.message ?: "بيانات الاشتراك غير صحيحة"
+                    _statusMessage.value = errMsg
                 }
-
-                // 2. Validate license parameters (status, expire_date, fingerprint)
-                val validationResult = ActivationValidator.validateLicense(license, currentFingerprint)
-
-                when (validationResult) {
-                    is ValidationResult.Blocked -> {
-                        PostgresDatabaseService.saveActivationAttempt(
-                            licenseId = license.id,
-                            hiddenData = hiddenData,
-                            result = "تم إيقاف الاشتراك"
-                        )
-                        _statusMessage.value = "تم إيقاف الاشتراك"
-                    }
-                    is ValidationResult.Expired -> {
-                        PostgresDatabaseService.saveActivationAttempt(
-                            licenseId = license.id,
-                            hiddenData = hiddenData,
-                            result = "انتهى الاشتراك"
-                        )
-                        _statusMessage.value = "انتهى الاشتراك"
-                    }
-                    is ValidationResult.InvalidFingerprint -> {
-                        PostgresDatabaseService.saveActivationAttempt(
-                            licenseId = license.id,
-                            hiddenData = hiddenData,
-                            result = "هذا الاشتراك مفعل على جهاز آخر"
-                        )
-                        _statusMessage.value = "هذا الاشتراك مفعل على جهاز آخر"
-                    }
-                    is ValidationResult.Success -> {
-                        // Always update device details in the database upon successful activation/entry
-                        Log.d(TAG, "Binding and updating device attributes: $currentFingerprint")
-                        val isUpdated = PostgresDatabaseService.updateDeviceFingerprint(name, key, hiddenData)
-                        if (!isUpdated) {
-                            PostgresDatabaseService.saveActivationAttempt(
-                                licenseId = license.id,
-                                hiddenData = hiddenData,
-                                result = "فشل في ربط الاشتراك بالجهاز"
-                            )
-                            _statusMessage.value = "فشل في ربط الاشتراك بجهازك. يرجى المحاولة لاحقاً."
-                            _isLoading.value = false
-                            return@launch
-                        }
-
-                        // 4. Record successful activation log
-                        PostgresDatabaseService.saveActivationAttempt(
-                            licenseId = license.id,
-                            hiddenData = hiddenData,
-                            result = "تفعيل ناجح"
-                        )
-
-                        // 5. Save activation locally to skip activation screen on subsequent app launches
-                        val storage = ActivationStorage(context)
-                        storage.setActivated(true, name, key, license.expireDate)
-                        
-                        _isSuccess.value = true
-                        _statusMessage.value = "تم تفعيل الاشتراك بنجاح! جاري الدخول..."
-                        
-                        // Execute success callback to navigate to main app screen
-                        onSuccess()
-                    }
-                    else -> {
-                        PostgresDatabaseService.saveActivationAttempt(
-                            licenseId = license.id,
-                            hiddenData = hiddenData,
-                            result = "بيانات الاشتراك غير صحيحة"
-                        )
-                        _statusMessage.value = "بيانات الاشتراك غير صحيحة"
-                    }
-                }
+            } catch (e: java.net.UnknownHostException) {
+                Log.e(TAG, "UnknownHostException", e)
+                _statusMessage.value = "حدث خطأ في الاتصال بالإنترنت. يرجى التأكد من اتصالك بالإنترنت والمحاولة مجدداً."
+            } catch (e: java.net.ConnectException) {
+                Log.e(TAG, "ConnectException", e)
+                _statusMessage.value = "حدث خطأ في الاتصال بالإنترنت. يرجى التأكد من اتصالك بالإنترنت والمحاولة مجدداً."
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.e(TAG, "SocketTimeoutException", e)
+                _statusMessage.value = "انتهت مهلة الاتصال بالخادم. يرجى التأكد من اتصالك بالإنترنت والمحاولة لاحقاً."
+            } catch (e: java.io.IOException) {
+                Log.e(TAG, "IOException", e)
+                _statusMessage.value = "حدث خطأ في الاتصال بالإنترنت. يرجى التأكد من اتصالك بالإنترنت والمحاولة مجدداً."
             } catch (e: retrofit2.HttpException) {
                 val errorBody = e.response()?.errorBody()?.string()
-                Log.e(TAG, "Supabase API returned HTTP ${e.code()}: $errorBody", e)
-                val userFriendlyMessage = when (e.code()) {
-                    401, 403 -> "فشل الترخيص (HTTP ${e.code()}): يرجى التحقق من صحة مفتاح Supabase Anon Key وصلاحيات الجداول (RLS)."
-                    404 -> "غير موجود (HTTP ${e.code()}): لم يتم العثور على مسار الجدول المطلوب في Supabase (تأكد من إنشاء جدول licenses)."
-                    else -> "خطأ في الاتصال بالخادم (${e.code()}): $errorBody"
-                }
-                _statusMessage.value = userFriendlyMessage
-            } catch (e: java.net.ConnectException) {
-                Log.e(TAG, "Connection failure connecting to Supabase gateway", e)
-                _statusMessage.value = "فشل الاتصال بخادم التفعيل. يرجى التحقق من اتصال الإنترنت."
+                Log.e(TAG, "HTTP ${e.code()}: $errorBody", e)
+                _statusMessage.value = "حدث خطأ في الاتصال بالخادم (${e.code()}). يرجى المحاولة لاحقاً."
             } catch (e: Exception) {
-                Log.e(TAG, "Activation workflow crash", e)
-                _statusMessage.value = "حدث خطأ غير متوقع أثناء الاتصال بقاعدة البيانات: ${e.localizedMessage ?: "تأكد من صحة الرابط"}"
+                Log.e(TAG, "Activation workflow error", e)
+                _statusMessage.value = "حدث خطأ غير متوقع أثناء التفعيل: ${e.localizedMessage ?: "يرجى المحاولة لاحقاً."}"
             } finally {
                 _isLoading.value = false
             }

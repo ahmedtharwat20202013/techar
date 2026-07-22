@@ -17,6 +17,7 @@ class ActivationStorage(context: Context) {
             putString(KEY_LICENSE_KEY, licenseKey)
             putString(KEY_EXPIRE_DATE, expireDate)
             putLong(KEY_ACTIVATION_TIME, System.currentTimeMillis())
+            putLong(KEY_LAST_VERIFICATION_TIME, System.currentTimeMillis())
             apply()
         }
     }
@@ -37,6 +38,14 @@ class ActivationStorage(context: Context) {
         prefs.edit().putString(KEY_EXPIRE_DATE, expireDate).apply()
     }
 
+    fun getLastVerificationTime(): Long {
+        return prefs.getLong(KEY_LAST_VERIFICATION_TIME, 0L)
+    }
+
+    fun setLastVerificationTime(time: Long) {
+        prefs.edit().putLong(KEY_LAST_VERIFICATION_TIME, time).apply()
+    }
+
     fun clearActivation() {
         prefs.edit().apply {
             putBoolean(KEY_IS_ACTIVATED, false)
@@ -44,6 +53,7 @@ class ActivationStorage(context: Context) {
             putString(KEY_LICENSE_KEY, null)
             putString(KEY_EXPIRE_DATE, null)
             putLong(KEY_ACTIVATION_TIME, 0L)
+            putLong(KEY_LAST_VERIFICATION_TIME, 0L)
             apply()
         }
     }
@@ -62,5 +72,6 @@ class ActivationStorage(context: Context) {
         private const val KEY_LICENSE_KEY = "license_key"
         private const val KEY_ACTIVATION_TIME = "activation_time"
         private const val KEY_EXPIRE_DATE = "expire_date"
+        private const val KEY_LAST_VERIFICATION_TIME = "last_verification_time"
     }
 }

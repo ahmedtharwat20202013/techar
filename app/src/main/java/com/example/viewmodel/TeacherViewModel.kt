@@ -271,32 +271,43 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
             val name = activationStorage.getActivatedCustomerName()
             val key = activationStorage.getActivatedLicenseKey()
             if (!name.isNullOrBlank() && !key.isNullOrBlank()) {
+                // Check if local expiration date has passed
+                val localExpireDate = activationStorage.getExpireDate()
+                val daysRemaining = calculateDaysRemaining(localExpireDate)
+                _subscriptionExpiryDate.value = localExpireDate
+                _subscriptionDaysRemaining.value = daysRemaining
+                
+                if (daysRemaining != null && daysRemaining < 0) {
+                    android.util.Log.w("TeacherViewModel", "Local subscription has expired. Deactivating.")
+                    activationStorage.clearActivation()
+                    return@launch
+                }
+
                 try {
-                    val updatedLicense = com.example.data.service.PostgresDatabaseService.getLicense(name, key)
-                    if (updatedLicense != null) {
-                        // Dynamically validate the license attributes
-                        val hiddenData = com.example.utils.DeviceUtils.collectHiddenData(application)
-                        val validationResult = com.example.data.validation.ActivationValidator.validateLicense(
-                            updatedLicense,
-                            hiddenData.fingerprint
-                        )
-                        
-                        if (validationResult is com.example.data.validation.ValidationResult.Success) {
-                            activationStorage.setExpireDate(updatedLicense.expireDate)
-                            _subscriptionExpiryDate.value = updatedLicense.expireDate
-                            _subscriptionDaysRemaining.value = calculateDaysRemaining(updatedLicense.expireDate)
-                        } else {
-                            // License has been blocked, expired, or fingerprint changed!
-                            android.util.Log.w("TeacherViewModel", "Dynamic license validation failed: $validationResult. Deactivating app.")
-                            activationStorage.clearActivation()
+                    val hiddenData = com.example.utils.DeviceUtils.collectHiddenData(application)
+                    val response = com.example.data.service.LicenseService.verifyLicense(
+                        customerName = name,
+                        licenseKey = key,
+                        deviceFingerprint = hiddenData.fingerprint,
+                        androidId = hiddenData.androidId,
+                        deviceModel = hiddenData.model,
+                        manufacturer = hiddenData.manufacturer
+                    )
+
+                    if (response.success) {
+                        if (!response.expireDate.isNullOrBlank()) {
+                            activationStorage.setExpireDate(response.expireDate)
+                            _subscriptionExpiryDate.value = response.expireDate
+                            _subscriptionDaysRemaining.value = calculateDaysRemaining(response.expireDate)
                         }
                     } else {
-                        // License was deleted from the dashboard!
-                        android.util.Log.w("TeacherViewModel", "License has been deleted from control panel. Deactivating app.")
+                        // License was blocked, expired, or invalid
+                        android.util.Log.w("TeacherViewModel", "License verification failed: ${response.message}. Deactivating app.")
                         activationStorage.clearActivation()
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("TeacherViewModel", "Failed to refresh/validate subscription from Supabase", e)
+                    android.util.Log.e("TeacherViewModel", "Failed to refresh/validate subscription from Cloudflare Worker (offline mode)", e)
+                    // Offline mode: keep app activated as long as local expiration date hasn't passed
                 }
             }
         }
