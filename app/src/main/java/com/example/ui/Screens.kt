@@ -5958,12 +5958,11 @@ fun ReportsBackupScreen(
 
     val daysRemainingVal = daysRemaining
 
-    var backupTextState by remember { mutableStateOf("") }
-    var restoreTextState by remember { mutableStateOf("") }
     var showCsvSharingSuccess by remember { mutableStateOf(false) }
     var showStartNewYearDialog by remember { mutableStateOf(false) }
 
     var showVerifyPinToChange by remember { mutableStateOf(false) }
+    var showSetPinDialog by remember { mutableStateOf(false) }
     var showVerifyPinToDeleteAll by remember { mutableStateOf(false) }
     var showVerifyPinToMoveRows by remember { mutableStateOf(false) }
 
@@ -5972,121 +5971,6 @@ fun ReportsBackupScreen(
             viewModel = viewModel,
             onDismissRequest = { showStartNewYearDialog = false }
         )
-    }
-
-    // Backup serializer logic
-    fun generateOfflineBackupJson(): String {
-        return try {
-            val root = JSONObject()
-            val studentGroupMap = enrollments.associate { it.studentId to it.groupId }
-
-            // 1. Groups to Json
-            val grpsArray = JSONArray()
-            groups.forEach { g ->
-                val o = JSONObject()
-                o.put("id", g.id)
-                o.put("name", g.name)
-                o.put("startDate", g.startDate)
-                o.put("monthlyFee", g.monthlyFee)
-                o.put("scheduleDays", g.scheduleDays)
-                grpsArray.put(o)
-            }
-            root.put("groups", grpsArray)
-
-            // 2. Students
-            val studsArray = JSONArray()
-            students.forEach { s ->
-                val o = JSONObject()
-                o.put("id", s.id)
-                o.put("groupId", studentGroupMap[s.id] ?: 0)
-                o.put("name", s.name)
-                o.put("parentPhone", s.parentPhone)
-                o.put("joinDate", s.joinDate)
-                o.put("notes", s.notes)
-                studsArray.put(o)
-            }
-            root.put("students", studsArray)
-
-            // 3. Sessions
-            val sessArray = JSONArray()
-            sessions.forEach { s ->
-                val o = JSONObject()
-                o.put("id", s.id)
-                o.put("groupId", s.groupId)
-                o.put("date", s.date)
-                o.put("time", s.time)
-                sessArray.put(o)
-            }
-            root.put("sessions", sessArray)
-
-            // 4. Payments
-            val paymentsArray = JSONArray()
-            payments.forEach { p ->
-                val o = JSONObject()
-                o.put("id", p.id)
-                o.put("studentId", p.studentId)
-                o.put("month", p.month)
-                o.put("isPaid", p.isPaid)
-                o.put("amountPaid", p.amountPaid)
-                o.put("paymentDate", p.paymentDate ?: "")
-                paymentsArray.put(o)
-            }
-            root.put("payments", paymentsArray)
-
-            // 5. Exams
-            val examsArray = JSONArray()
-            exams.forEach { e ->
-                val o = JSONObject()
-                o.put("id", e.id)
-                o.put("studentId", e.studentId)
-                o.put("examName", e.examName)
-                o.put("score", e.score)
-                o.put("maxScore", e.maxScore)
-                o.put("date", e.date)
-                examsArray.put(o)
-            }
-            root.put("exams", examsArray)
-
-            root.toString(2) // Intented JSON
-        } catch (e: Exception) {
-            "فشل توليد النسخة الاحتياطية"
-        }
-    }
-
-    // Restore deserializer logic
-    fun restoreOfflineBackupJson(jsonString: String) {
-        try {
-            val root = JSONObject(jsonString)
-
-            // 1. Rebuild Groups
-            val grpsArray = root.getJSONArray("groups")
-            for (i in 0 until grpsArray.length()) {
-                val o = grpsArray.getJSONObject(i)
-                viewModel.addGroup(
-                    name = o.getString("name"),
-                    startDate = o.getString("startDate"),
-                    fee = o.getDouble("monthlyFee"),
-                    schedule = o.getString("scheduleDays")
-                )
-            }
-
-            // 2. Rebuild Students
-            val studsArray = root.getJSONArray("students")
-            for (i in 0 until studsArray.length()) {
-                val o = studsArray.getJSONObject(i)
-                viewModel.addStudent(
-                    groupId = o.getInt("groupId"),
-                    name = o.getString("name"),
-                    parentPhone = o.getString("parentPhone"),
-                    joinDate = o.getString("joinDate"),
-                    notes = o.optString("notes", "")
-                )
-            }
-
-            Toast.makeText(context, "تم استرجاع البيانات بنجاح كلياً", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(context, "خطأ في بنية كود التهيئة الاحتياطية", Toast.LENGTH_LONG).show()
-        }
     }
 
     // CSV generator sharing dispatcher
@@ -6139,7 +6023,7 @@ fun ReportsBackupScreen(
     ) {
         item {
             Text(
-                text = "تقارير وقاعدة البيانات الاحتياطية",
+                text = "تقارير وإدارة البيانات",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryDarkGreen
@@ -6381,109 +6265,6 @@ fun ReportsBackupScreen(
             }
         }
 
-        // --- BACKUP RESTORE CARD SECTION ---
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Backup, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("توليد نسخة احتياطية ( JSON )", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
-                    }
-                    Text(
-                        text = "اضغط على زر التوليد لتفويض نسخة نصية كاملة ومبسطة لقاعدة البيانات والطلاب تتيح لك نقلها أو الاحتفاظ وتخزينها بأمان تام.",
-                        fontSize = 12.sp,
-                        color = TextGray,
-                        lineHeight = 16.sp
-                    )
-
-                    Button(
-                        onClick = { backupTextState = generateOfflineBackupJson() },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryDarkGreen),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("تفويض وتوليد كود الحفظ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    if (backupTextState.isNotBlank()) {
-                        OutlinedTextField(
-                            value = backupTextState,
-                            onValueChange = { backupTextState = it },
-                            modifier = Modifier.fillMaxWidth().height(160.dp),
-                            readOnly = true,
-                            shape = RoundedCornerShape(10.dp),
-                            label = { Text("انسخ كود الحفظ الاحتياطي الناتج:") }
-                        )
-
-                        // Copy button helper
-                        Button(
-                            onClick = {
-                                val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                val clipData = android.content.ClipData.newPlainText("Teacher Manager Backup", backupTextState)
-                                clipboardManager.setPrimaryClip(clipData)
-                                Toast.makeText(context, "تم نسخ كود الاحتفاظ بالذاكرة!", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("نسخ كود الحفظ الاحتياطي للاستخدام لاحقاً", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- RESTORE BACKUP SYSTEM ---
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, tint = DangerRed, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("استجلاب واستعادة البيانات", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen)
-                    }
-                    Text(
-                        text = "الصق الكود الاحتياطي ( JSON ) المطابق بالأسفل واضغط استجابة لاسترجاع كافة الأرقام والمجموعات في لحظة.",
-                        fontSize = 12.sp,
-                        color = TextGray
-                    )
-
-                    OutlinedTextField(
-                        value = restoreTextState,
-                        onValueChange = { restoreTextState = it },
-                        modifier = Modifier.fillMaxWidth().height(110.dp),
-                        placeholder = { Text("الصق كود الحفظ هنا...") },
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    Button(
-                        onClick = {
-                            if (restoreTextState.isNotBlank()) {
-                                restoreOfflineBackupJson(restoreTextState)
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("تأكيد استدعاء واستعادة البيانات", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
         // --- HARD RESET / CLEAN ALL DATA ---
         item {
             var showConfirmResetDialog by remember { mutableStateOf(false) }
@@ -6517,6 +6298,18 @@ fun ReportsBackupScreen(
                 )
             }
 
+            if (showSetPinDialog) {
+                SetPinDialog(
+                    pinStorage = pinStorage,
+                    title = if (pinStorage.hasPin()) "تحديث رقم PIN المشفر" else "إنشاء رقم PIN مشفر جديد",
+                    onDismissRequest = { showSetPinDialog = false },
+                    onPinSet = {
+                        showSetPinDialog = false
+                        Toast.makeText(context, "تم حفظ رقم PIN وتشفيره بنجاح!", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+
             if (showVerifyPinToChange) {
                 ConfirmPinDialog(
                     pinStorage = pinStorage,
@@ -6525,9 +6318,7 @@ fun ReportsBackupScreen(
                     onDismissRequest = { showVerifyPinToChange = false },
                     onConfirmed = {
                         showVerifyPinToChange = false
-                        pinStorage.clearPin()
-                        pinStorage.setAuthenticated(false)
-                        Toast.makeText(context, "تم التحقق بنجاح! يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
+                        showSetPinDialog = true
                     }
                 )
             }
@@ -6651,18 +6442,16 @@ fun ReportsBackupScreen(
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { showPinDialog = false },
                     title = { Text("تفعيل قفل PIN", fontWeight = FontWeight.Bold, color = PrimaryDarkGreen) },
-                    text = { Text("سيطلب التطبيق إنشاء رقم PIN جديد (4 أرقام) للحماية عند الخروج أو إعادة فتح التطبيق.", color = TextGray) },
+                    text = { Text("سيطلب التطبيق إنشاء رقم PIN جديد (4 أرقام) مفتاح الحماية والحفظ المشفر.", color = TextGray) },
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                pinStorage.setPinEnabled(true)
-                                pinStorage.setAuthenticated(false)
-                                pinStorage.clearPin() // Force setup on next launch
-                                pinEnabled = true
                                 showPinDialog = false
+                                pinEnabled = true
+                                showSetPinDialog = true
                             }
                         ) {
-                            Text("تفعيل وتعيين", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            Text("تعيين الآن", color = PrimaryGreen, fontWeight = FontWeight.Bold)
                         }
                     },
                     dismissButton = {
@@ -6711,7 +6500,7 @@ fun ReportsBackupScreen(
                     }
 
                     Text(
-                        text = "يقوم هذا الخيار بحماية خصوصية بيانات طلابك ونتائجهم برقم سري PIN مكون من 4 أرقام عند قفل أو فتح التطبيق.",
+                        text = "يقوم هذا الخيار بحماية خصوصية بيانات طلابك ونتائجهم برقم سري PIN مكون من 4 أرقام محمي ومحفوظ بتشفير AES-256.",
                         fontSize = 12.sp,
                         color = TextGray,
                         lineHeight = 16.sp
@@ -6720,19 +6509,24 @@ fun ReportsBackupScreen(
                     if (pinEnabled && pinStorage.hasPin()) {
                         Button(
                             onClick = {
-                                if (pinStorage.isPinEnabled() && pinStorage.hasPin()) {
-                                    showVerifyPinToChange = true
-                                } else {
-                                    pinStorage.clearPin()
-                                    pinStorage.setAuthenticated(false)
-                                    Toast.makeText(context, "يرجى تعيين الكود الجديد الآن", Toast.LENGTH_SHORT).show()
-                                }
+                                showVerifyPinToChange = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("تغيير رقم PIN الحالي", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (pinEnabled && !pinStorage.hasPin()) {
+                        Button(
+                            onClick = {
+                                showSetPinDialog = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("تعيين رقم PIN جديد", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -9683,6 +9477,116 @@ fun ConfirmPinDialog(
                 enabled = enteredPin.length == 4
             ) {
                 Text("تأكيد")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("إلغاء", color = TextGray)
+            }
+        }
+    )
+}
+
+@Composable
+fun SetPinDialog(
+    pinStorage: PinStorage,
+    title: String = "تعيين رقم PIN جديد",
+    onDismissRequest: () -> Unit,
+    onPinSet: (String) -> Unit
+) {
+    var newPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var step by remember { mutableStateOf(1) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        icon = {
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+        },
+        title = {
+            Text(
+                text = if (step == 1) title else "تأكيد رقم PIN",
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (step == 1) "أدخل رقم PIN الجديد مكون من 4 أرقام" else "أعد إدخال نفس رقم PIN للتأكيد",
+                    fontSize = 13.sp,
+                    color = TextGray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = if (step == 1) newPin else confirmPin,
+                    onValueChange = { input ->
+                        if (input.length <= 4 && input.all { it.isDigit() }) {
+                            if (step == 1) newPin = input else confirmPin = input
+                            errorMessage = null
+                        }
+                    },
+                    label = { Text("رمز PIN (4 أرقام)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    singleLine = true,
+                    isError = errorMessage != null,
+                    modifier = Modifier.width(180.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+
+                errorMessage?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (step == 1) {
+                        if (newPin.length == 4) {
+                            step = 2
+                        }
+                    } else {
+                        if (confirmPin == newPin) {
+                            pinStorage.setPin(newPin)
+                            pinStorage.setPinEnabled(true)
+                            pinStorage.setAuthenticated(true)
+                            onPinSet(newPin)
+                        } else {
+                            errorMessage = "الرقمين غير متطابقين، أعد المحاولة"
+                            confirmPin = ""
+                        }
+                    }
+                },
+                enabled = if (step == 1) newPin.length == 4 else confirmPin.length == 4
+            ) {
+                Text(if (step == 1) "التالي" else "حفظ المشفر")
             }
         },
         dismissButton = {

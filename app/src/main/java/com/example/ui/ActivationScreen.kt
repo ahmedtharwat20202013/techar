@@ -157,7 +157,7 @@ fun ActivationScreen(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "يرجى إدخال بيانات الاشتراك",
+                                text = "أدخل رمز الاشتراك الخاص بك لتفعيل التطبيق",
                                 fontSize = 14.sp,
                                 color = Color.Gray,
                                 textAlign = TextAlign.Center
@@ -165,39 +165,6 @@ fun ActivationScreen(
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
-
-                        // Customer Name Field (اسم المستخدم)
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "اسم المستخدم",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PremiumForestGreen
-                            )
-                            OutlinedTextField(
-                                value = customerName,
-                                onValueChange = { viewModel.onCustomerNameChange(it) },
-                                placeholder = { Text("مثال: أحمد محمد", fontSize = 13.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = PremiumForestGreen.copy(alpha = 0.6f)
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PremiumForestGreen,
-                                    unfocusedBorderColor = Color.LightGray,
-                                    cursorColor = PremiumForestGreen
-                                )
-                            )
-                        }
 
                         // License Key Field (رمز الاشتراك)
                         Column(

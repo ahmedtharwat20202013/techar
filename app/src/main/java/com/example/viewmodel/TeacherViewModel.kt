@@ -268,34 +268,45 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
 
     fun refreshSubscriptionStatus() {
         viewModelScope.launch {
-            val name = activationStorage.getActivatedCustomerName()
+            val name = activationStorage.getActivatedCustomerName() ?: ""
             val key = activationStorage.getActivatedLicenseKey()
-            if (!name.isNullOrBlank() && !key.isNullOrBlank()) {
-                // Check if local expiration date has passed
+            if (!key.isNullOrBlank()) {
+                // Check if local encrypted expiration date has passed
                 val localExpireDate = activationStorage.getExpireDate()
+                val isExpired = com.example.security.SubscriptionValidator.isExpired(localExpireDate)
+                
+                if (isExpired) {
+                    android.util.Log.w("TeacherViewModel", "Local subscription has expired. Deactivating immediately.")
+                    activationStorage.clearActivation()
+                    _subscriptionDaysRemaining.value = -1
+                    return@launch
+                }
+
                 val daysRemaining = calculateDaysRemaining(localExpireDate)
                 _subscriptionExpiryDate.value = localExpireDate
                 _subscriptionDaysRemaining.value = daysRemaining
-                
-                if (daysRemaining != null && daysRemaining < 0) {
-                    android.util.Log.w("TeacherViewModel", "Local subscription has expired. Deactivating.")
-                    activationStorage.clearActivation()
-                    return@launch
-                }
 
                 try {
                     val hiddenData = com.example.utils.DeviceUtils.collectHiddenData(application)
                     val response = com.example.data.service.LicenseService.verifyLicense(
-                        customerName = name,
                         licenseKey = key,
                         deviceFingerprint = hiddenData.fingerprint,
                         androidId = hiddenData.androidId,
                         deviceModel = hiddenData.model,
-                        manufacturer = hiddenData.manufacturer
+                        manufacturer = hiddenData.manufacturer,
+                        brand = hiddenData.brand,
+                        androidVersion = hiddenData.androidVersion,
+                        appVersion = hiddenData.appVersion
                     )
 
                     if (response.success) {
                         if (!response.expireDate.isNullOrBlank()) {
+                            // Check if returned server expireDate is already expired
+                            if (com.example.security.SubscriptionValidator.isExpired(response.expireDate)) {
+                                android.util.Log.w("TeacherViewModel", "Server returned expired date. Deactivating immediately.")
+                                activationStorage.clearActivation()
+                                return@launch
+                            }
                             activationStorage.setExpireDate(response.expireDate)
                             _subscriptionExpiryDate.value = response.expireDate
                             _subscriptionDaysRemaining.value = calculateDaysRemaining(response.expireDate)
@@ -309,6 +320,8 @@ class TeacherViewModel(private val repository: TeacherRepository, private val ap
                     android.util.Log.e("TeacherViewModel", "Failed to refresh/validate subscription from Cloudflare Worker (offline mode)", e)
                     // Offline mode: keep app activated as long as local expiration date hasn't passed
                 }
+            } else {
+                activationStorage.clearActivation()
             }
         }
     }

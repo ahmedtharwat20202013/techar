@@ -142,6 +142,29 @@ class MainActivity : ComponentActivity() {
                     val activationStorage = remember { ActivationStorage(this@MainActivity) }
                     var isActivated by remember { mutableStateOf(activationStorage.isActivated()) }
 
+                    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+                        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                                isActivated = activationStorage.isActivated()
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(observer)
+                        }
+                    }
+
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        while (true) {
+                            kotlinx.coroutines.delay(15000) // Check subscription every 15s even offline
+                            val active = activationStorage.isActivated()
+                            if (!active && isActivated) {
+                                isActivated = false
+                            }
+                        }
+                    }
+
                     androidx.compose.runtime.DisposableEffect(activationStorage) {
                         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                             if (key == null || key == ActivationStorage.KEY_IS_ACTIVATED) {
@@ -190,13 +213,6 @@ class MainActivity : ComponentActivity() {
 
                             // Show PIN screen if enabled and not authenticated
                             pinEnabled && !isAuthenticated -> {
-                                PinLockScreen(
-                                    onAuthenticated = { isAuthenticated = true }
-                                )
-                            }
-
-                            // First time setup - no PIN set yet
-                            !hasPin && !isAuthenticated -> {
                                 PinLockScreen(
                                     onAuthenticated = { isAuthenticated = true }
                                 )
@@ -417,16 +433,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        try {
+            val activationStorage = ActivationStorage(this)
+            if (!activationStorage.isActivated()) {
+                activationStorage.clearActivation()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error verifying subscription in onResume", e)
+        }
+    }
+
     override fun onStop() {
         super.onStop()
-        // Lock app when backgrounded unless picking a file
         if (isPickingFile) {
             isPickingFile = false
             return
-        }
-        val pinStorage = PinStorage(this)
-        if (pinStorage.isPinEnabled()) {
-            pinStorage.setAuthenticated(false)
         }
     }
 

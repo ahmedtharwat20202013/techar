@@ -43,8 +43,8 @@ class ActivationViewModel : ViewModel() {
         val name = _customerName.value.trim()
         val key = _licenseKey.value.trim()
 
-        if (name.isEmpty() || key.isEmpty()) {
-            _statusMessage.value = "يرجى إدخال اسم المستخدم ورمز الاشتراك"
+        if (key.isEmpty()) {
+            _statusMessage.value = "يرجى إدخال رمز الاشتراك"
             return
         }
 
@@ -56,23 +56,38 @@ class ActivationViewModel : ViewModel() {
                 // Automatically collect hidden device details for fingerprinting
                 val hiddenData: DeviceHiddenData = DeviceUtils.collectHiddenData(context)
 
-                Log.d(TAG, "Attempting subscription activation for: $name with key: $key")
+                Log.d(TAG, "Attempting subscription activation with key: $key")
                 Log.d(TAG, "Device Fingerprint: ${hiddenData.fingerprint}")
 
                 // Send request to Cloudflare Worker LicenseService
                 val response = LicenseService.verifyLicense(
-                    customerName = name,
                     licenseKey = key,
                     deviceFingerprint = hiddenData.fingerprint,
                     androidId = hiddenData.androidId,
                     deviceModel = hiddenData.model,
-                    manufacturer = hiddenData.manufacturer
+                    manufacturer = hiddenData.manufacturer,
+                    brand = hiddenData.brand,
+                    androidVersion = hiddenData.androidVersion,
+                    appVersion = hiddenData.appVersion
                 )
 
                 if (response.success) {
                     val expireDate = response.expireDate ?: "2099-12-31"
+                    val customerName = if (!response.customerName.isNullOrBlank()) response.customerName else if (name.isNotBlank()) name else "مشترك"
+                    
+                    // Save encrypted license via LicenseManager & ActivationStorage
+                    com.example.security.LicenseManager.saveLicense(
+                        context = context,
+                        customerName = customerName,
+                        licenseKey = key,
+                        expireDate = expireDate,
+                        licenseId = response.licenseId ?: key,
+                        startDate = response.startDate ?: "",
+                        planType = response.planType ?: "PREMIUM"
+                    )
+
                     val storage = ActivationStorage(context)
-                    storage.setActivated(true, name, key, expireDate)
+                    storage.setActivated(true, customerName, key, expireDate)
                     
                     _isSuccess.value = true
                     _statusMessage.value = response.message ?: "تم تفعيل الاشتراك بنجاح! جاري الدخول..."
@@ -80,7 +95,7 @@ class ActivationViewModel : ViewModel() {
                     // Execute success callback to navigate to main app screen
                     onSuccess()
                 } else {
-                    val errMsg = response.message ?: "بيانات الاشتراك غير صحيحة"
+                    val errMsg = response.message ?: "رمز الاشتراك غير صحيح"
                     _statusMessage.value = errMsg
                 }
             } catch (e: java.net.UnknownHostException) {
@@ -97,8 +112,16 @@ class ActivationViewModel : ViewModel() {
                 _statusMessage.value = "حدث خطأ في الاتصال بالإنترنت. يرجى التأكد من اتصالك بالإنترنت والمحاولة مجدداً."
             } catch (e: retrofit2.HttpException) {
                 val errorBody = e.response()?.errorBody()?.string()
-                Log.e(TAG, "HTTP ${e.code()}: $errorBody", e)
-                _statusMessage.value = "حدث خطأ في الاتصال بالخادم (${e.code()}). يرجى المحاولة لاحقاً."
+                Log.e(TAG, "HTTP Exception ${e.code()}: $errorBody", e)
+                val serverMsg = if (!errorBody.isNullOrBlank()) {
+                    try {
+                        val json = org.json.JSONObject(errorBody)
+                        json.optString("message", null) ?: json.optString("error", null)
+                    } catch (ex: Exception) {
+                        null
+                    }
+                } else null
+                _statusMessage.value = serverMsg ?: "حدث خطأ في الاتصال بالخادم (${e.code()}). يرجى المحاولة لاحقاً."
             } catch (e: Exception) {
                 Log.e(TAG, "Activation workflow error", e)
                 _statusMessage.value = "حدث خطأ غير متوقع أثناء التفعيل: ${e.localizedMessage ?: "يرجى المحاولة لاحقاً."}"

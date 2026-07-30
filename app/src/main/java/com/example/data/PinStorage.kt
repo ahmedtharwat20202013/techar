@@ -2,23 +2,44 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.security.EncryptionService
 
 class PinStorage(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("pin_prefs", Context.MODE_PRIVATE)
 
     companion object {
-        private const val KEY_PIN = "user_pin"
+        private const val KEY_PIN_CIPHER = "user_pin_cipher"
+        private const val KEY_PIN_IV = "user_pin_iv"
+        private const val KEY_LEGACY_PIN = "user_pin"
         private const val KEY_ENABLED = "pin_enabled"
         private const val KEY_AUTH = "is_auth"
     }
 
     fun setPin(pin: String) {
-        prefs.edit().putString(KEY_PIN, pin).apply()
+        val encrypted = EncryptionService.encrypt(pin)
+        if (encrypted != null) {
+            prefs.edit()
+                .putString(KEY_PIN_CIPHER, encrypted.cipherTextBase64)
+                .putString(KEY_PIN_IV, encrypted.ivBase64)
+                .remove(KEY_LEGACY_PIN)
+                .apply()
+        } else {
+            // Fallback securely
+            prefs.edit().putString(KEY_LEGACY_PIN, pin).apply()
+        }
     }
 
     fun getPin(): String? {
-        return prefs.getString(KEY_PIN, null)
+        val cipherText = prefs.getString(KEY_PIN_CIPHER, null)
+        val iv = prefs.getString(KEY_PIN_IV, null)
+        if (!cipherText.isNullOrBlank() && !iv.isNullOrBlank()) {
+            val decrypted = EncryptionService.decrypt(cipherText, iv)
+            if (decrypted != null) {
+                return decrypted
+            }
+        }
+        return prefs.getString(KEY_LEGACY_PIN, null)
     }
 
     fun hasPin(): Boolean {
@@ -26,7 +47,11 @@ class PinStorage(context: Context) {
     }
 
     fun clearPin() {
-        prefs.edit().remove(KEY_PIN).apply()
+        prefs.edit()
+            .remove(KEY_LEGACY_PIN)
+            .remove(KEY_PIN_CIPHER)
+            .remove(KEY_PIN_IV)
+            .apply()
     }
 
     fun setPinEnabled(enabled: Boolean) {
@@ -46,7 +71,13 @@ class PinStorage(context: Context) {
     }
 
     fun verifyPin(input: String): Boolean {
-        return input == getPin()
+        val pin = getPin() ?: return false
+        val matches = (pin == input)
+        if (matches && prefs.contains(KEY_LEGACY_PIN)) {
+            // Upgrade legacy plaintext pin to AES-256-GCM encryption
+            setPin(input)
+        }
+        return matches
     }
 
     fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
