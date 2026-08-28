@@ -22,50 +22,12 @@ import com.example.ui.*
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import com.example.data.PinStorage
-import com.example.data.storage.ActivationStorage
-import com.example.viewmodel.ActivationViewModel
 import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.TeacherViewModel
 import com.example.viewmodel.TeacherViewModelFactory
 import timber.log.Timber
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
-
-    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
-
-    override fun onDestroy() {
-        super.onDestroy()
-        networkCallback?.let { callback ->
-            try {
-                val connectivityManager = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                connectivityManager.unregisterNetworkCallback(callback)
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "Failed to unregister network callback", e)
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Set the global default JVM TimeZone to Egypt/Cairo
@@ -73,157 +35,73 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val prefs = getSharedPreferences("crash_reports", android.content.Context.MODE_PRIVATE)
-        val lastCrash = prefs.getString("last_crash", null)
-
-        if (lastCrash != null) {
-            setContent {
-                MyApplicationTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        CrashReportScreen(
-                            stackTrace = lastCrash,
-                            onClear = {
-                                prefs.edit().remove("last_crash").apply()
-                                recreate()
-                            }
-                        )
-                    }
-                }
+        // Request notification permission for Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val permissionCheck = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+            if (permissionCheck != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
             }
-            return
         }
 
-        // Catch uncaught exceptions on other threads or later in execution
-        val oldHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            android.util.Log.e("CRASH_HANDLER", "CRASH DETECTED on thread ${thread.name}", throwable)
-            prefs.edit().putString("last_crash", android.util.Log.getStackTraceString(throwable)).commit()
-            oldHandler?.uncaughtException(thread, throwable)
+        // Plant Timber debug tree for logging
+        if (Timber.forest().isEmpty()) {
+            Timber.plant(Timber.DebugTree())
         }
 
-        try {
-            // Plant Timber debug tree for logging
-            if (Timber.forest().isEmpty()) {
-                Timber.plant(Timber.DebugTree())
-            }
+        // 1. Initialize DB & Repository
+        val database = AppDatabase.getDatabase(applicationContext)
+        val repository = TeacherRepository(database.appDao(), database)
 
-            // 1. Initialize DB & Repository
-            val database = AppDatabase.getDatabase(applicationContext)
-            val repository = TeacherRepository(database.appDao(), database)
+        // 2. Instantiate Main Shared ViewModel from Factory
+        val factory = TeacherViewModelFactory(repository, application)
+        val viewModel = ViewModelProvider(this, factory)[TeacherViewModel::class.java]
 
-            // 2. Instantiate Main Shared ViewModel from Factory
-            val factory = TeacherViewModelFactory(repository, application)
-            val viewModel = ViewModelProvider(this, factory)[TeacherViewModel::class.java]
+        setContent {
+            MyApplicationTheme {
+                val pinStorage = remember { PinStorage(this@MainActivity) }
+                var isAuthenticated by remember { mutableStateOf(pinStorage.isAuthenticated()) }
+                var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
+                var hasPin by remember { mutableStateOf(pinStorage.hasPin()) }
 
-            // Monitor network connectivity to trigger subscription validation when internet becomes available
-            try {
-                val connectivityManager = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                val networkRequest = android.net.NetworkRequest.Builder()
-                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .build()
-                val callback = object : android.net.ConnectivityManager.NetworkCallback() {
-                    override fun onAvailable(network: android.net.Network) {
-                        runOnUiThread {
-                            viewModel.refreshSubscriptionStatus()
+                androidx.compose.runtime.DisposableEffect(pinStorage) {
+                    val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                        when (key) {
+                            "is_auth" -> isAuthenticated = pinStorage.isAuthenticated()
+                            "pin_enabled" -> pinEnabled = pinStorage.isPinEnabled()
+                            "user_pin" -> hasPin = pinStorage.hasPin()
                         }
+                    }
+                    pinStorage.registerListener(listener)
+                    onDispose {
+                        pinStorage.unregisterListener(listener)
                     }
                 }
-                networkCallback = callback
-                connectivityManager.registerNetworkCallback(networkRequest, callback)
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "Failed to register network callback", e)
-            }
 
-            setContent {
-                MyApplicationTheme {
-                    val activationStorage = remember { ActivationStorage(this@MainActivity) }
-                    var isActivated by remember { mutableStateOf(activationStorage.isActivated()) }
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    when {
+                        // Show PIN screen if enabled and not authenticated
+                        pinEnabled && !isAuthenticated -> {
+                            PinLockScreen(
+                                onAuthenticated = { isAuthenticated = true }
+                            )
+                        }
 
-                    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-                    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-                        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                                isActivated = activationStorage.isActivated()
+                        // First time setup - no PIN set yet
+                        !hasPin && !isAuthenticated -> {
+                            PinLockScreen(
+                                onAuthenticated = { isAuthenticated = true }
+                            )
+                        }
+
+                        // Normal app
+                        else -> {
+                            if (!isAuthenticated) {
+                                pinStorage.setAuthenticated(true)
+                                isAuthenticated = true
                             }
-                        }
-                        lifecycleOwner.lifecycle.addObserver(observer)
-                        onDispose {
-                            lifecycleOwner.lifecycle.removeObserver(observer)
-                        }
-                    }
-
-                    androidx.compose.runtime.LaunchedEffect(Unit) {
-                        while (true) {
-                            kotlinx.coroutines.delay(15000) // Check subscription every 15s even offline
-                            val active = activationStorage.isActivated()
-                            if (!active && isActivated) {
-                                isActivated = false
-                            }
-                        }
-                    }
-
-                    androidx.compose.runtime.DisposableEffect(activationStorage) {
-                        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                            if (key == null || key == ActivationStorage.KEY_IS_ACTIVATED) {
-                                isActivated = activationStorage.isActivated()
-                            }
-                        }
-                        activationStorage.registerListener(listener)
-                        onDispose {
-                            activationStorage.unregisterListener(listener)
-                        }
-                    }
-
-                    val pinStorage = remember { PinStorage(this@MainActivity) }
-                    var isAuthenticated by remember { mutableStateOf(pinStorage.isAuthenticated()) }
-                    var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
-                    var hasPin by remember { mutableStateOf(pinStorage.hasPin()) }
-
-                    androidx.compose.runtime.DisposableEffect(pinStorage) {
-                        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                            when (key) {
-                                "is_auth" -> isAuthenticated = pinStorage.isAuthenticated()
-                                "pin_enabled" -> pinEnabled = pinStorage.isPinEnabled()
-                                "user_pin" -> hasPin = pinStorage.hasPin()
-                            }
-                        }
-                        pinStorage.registerListener(listener)
-                        onDispose {
-                            pinStorage.unregisterListener(listener)
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        when {
-                            !isActivated -> {
-                                val activationViewModel = remember { ActivationViewModel() }
-                                ActivationScreen(
-                                    viewModel = activationViewModel,
-                                    onActivationSuccess = {
-                                        isActivated = true
-                                    }
-                                )
-                            }
-
-                            // Show PIN screen if enabled and not authenticated
-                            pinEnabled && !isAuthenticated -> {
-                                PinLockScreen(
-                                    onAuthenticated = { isAuthenticated = true }
-                                )
-                            }
-
-                            // Normal app
-                            else -> {
-                                if (!isAuthenticated) {
-                                    pinStorage.setAuthenticated(true)
-                                    isAuthenticated = true
-                                }
 
                             val navController = rememberNavController()
 
@@ -411,107 +289,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        } catch (e: Throwable) {
-            android.util.Log.e("CRASH_HANDLER", "CRASH IN ONCREATE", e)
-            prefs.edit().putString("last_crash", android.util.Log.getStackTraceString(e)).commit()
-            setContent {
-                MyApplicationTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        CrashReportScreen(
-                            stackTrace = android.util.Log.getStackTraceString(e),
-                            onClear = {
-                                prefs.edit().remove("last_crash").apply()
-                                recreate()
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        try {
-            val activationStorage = ActivationStorage(this)
-            if (!activationStorage.isActivated()) {
-                activationStorage.clearActivation()
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "Error verifying subscription in onResume", e)
-        }
     }
 
     override fun onStop() {
         super.onStop()
+        // Lock app when backgrounded unless picking a file
         if (isPickingFile) {
             isPickingFile = false
             return
+        }
+        val pinStorage = PinStorage(this)
+        if (pinStorage.isPinEnabled()) {
+            pinStorage.setAuthenticated(false)
         }
     }
 
     companion object {
         var isPickingFile = false
-    }
-}
-
-@Composable
-fun CrashReportScreen(stackTrace: String, onClear: () -> Unit) {
-    androidx.compose.foundation.layout.Box(
-        modifier = androidx.compose.ui.Modifier
-            .fillMaxSize()
-            .background(Color(0xFFFFF0F0))
-            .padding(24.dp),
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        androidx.compose.foundation.layout.Column(
-            modifier = androidx.compose.ui.Modifier
-                .fillMaxWidth()
-                .verticalScroll(androidx.compose.foundation.rememberScrollState()),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.Warning,
-                contentDescription = null,
-                tint = Color(0xFFC62828),
-                modifier = androidx.compose.ui.Modifier.size(64.dp)
-            )
-            Text(
-                text = "تنبيه: حدث خطأ غير متوقع",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFC62828)
-            )
-            Text(
-                text = "لقد واجه التطبيق مشكلة أدت إلى إغلاقه. تفاصيل الخطأ:",
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                color = Color.DarkGray
-            )
-            Surface(
-                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                color = Color.White,
-                shape = RoundedCornerShape(8.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFCDD2))
-            ) {
-                Text(
-                    text = stackTrace,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    modifier = androidx.compose.ui.Modifier.padding(12.dp),
-                    color = Color(0xFFB71C1C)
-                )
-            }
-            Button(
-                onClick = onClear,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
-            ) {
-                Text("مسح التقرير وإعادة التشغيل", color = Color.White)
-            }
-        }
     }
 }
