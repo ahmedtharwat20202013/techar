@@ -25,7 +25,8 @@ import com.example.ui.theme.LightBgGreen
 @Composable
 fun PinLockScreen(
     onAuthenticated: () -> Unit,
-    onSetupPin: () -> Unit = {}
+    onSetupPin: () -> Unit = {},
+    onSkip: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val pinStorage = remember { PinStorage(context) }
@@ -48,6 +49,17 @@ fun PinLockScreen(
         if (enteredPin.isNotEmpty()) {
             enteredPin = enteredPin.dropLast(1)
             errorMessage = null
+        }
+    }
+
+    fun onSkipSetup() {
+        pinStorage.setSetupSkipped(true)
+        pinStorage.setPinEnabled(false)
+        pinStorage.setAuthenticated(true)
+        if (onSkip != null) {
+            onSkip()
+        } else {
+            onAuthenticated()
         }
     }
 
@@ -189,7 +201,23 @@ fun PinLockScreen(
                 ) {
                     row.forEach { key ->
                         when (key) {
-                            "" -> Box(modifier = Modifier.size(72.dp))
+                            "" -> {
+                                if (isSetupMode) {
+                                    TextButton(
+                                        onClick = { onSkipSetup() },
+                                        modifier = Modifier.size(72.dp)
+                                    ) {
+                                        Text(
+                                            text = "تخطي",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PrimaryDarkGreen.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                } else {
+                                    Box(modifier = Modifier.size(72.dp))
+                                }
+                            }
                             "del" -> KeypadButton(
                                 icon = Icons.Default.Backspace,
                                 onClick = { onBackspaceClick() }
@@ -201,6 +229,20 @@ fun PinLockScreen(
                         }
                     }
                 }
+            }
+        }
+
+        if (isSetupMode) {
+            Spacer(modifier = Modifier.height(16.dp))
+            TextButton(
+                onClick = { onSkipSetup() }
+            ) {
+                Text(
+                    text = "تخطي إعداد كلمة المرور الآن",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PrimaryDarkGreen.copy(alpha = 0.75f)
+                )
             }
         }
 

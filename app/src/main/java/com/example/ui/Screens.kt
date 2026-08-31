@@ -6416,6 +6416,7 @@ fun ReportsBackupScreen(
                             onClick = {
                                 pinStorage.setPinEnabled(true)
                                 pinStorage.setAuthenticated(false)
+                                pinStorage.setSetupSkipped(false)
                                 pinStorage.clearPin() // Force setup on next launch
                                 pinEnabled = true
                                 showPinDialog = false

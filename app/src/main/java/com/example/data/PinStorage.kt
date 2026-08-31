@@ -11,10 +11,14 @@ class PinStorage(context: Context) {
         private const val KEY_PIN = "user_pin"
         private const val KEY_ENABLED = "pin_enabled"
         private const val KEY_AUTH = "is_auth"
+        private const val KEY_SKIPPED = "pin_setup_skipped"
     }
 
     fun setPin(pin: String) {
-        prefs.edit().putString(KEY_PIN, pin).apply()
+        prefs.edit()
+            .putString(KEY_PIN, pin)
+            .putBoolean(KEY_SKIPPED, false)
+            .apply()
     }
 
     fun getPin(): String? {
@@ -23,6 +27,14 @@ class PinStorage(context: Context) {
 
     fun hasPin(): Boolean {
         return getPin() != null
+    }
+
+    fun setSetupSkipped(skipped: Boolean) {
+        prefs.edit().putBoolean(KEY_SKIPPED, skipped).apply()
+    }
+
+    fun isSetupSkipped(): Boolean {
+        return prefs.getBoolean(KEY_SKIPPED, false)
     }
 
     fun clearPin() {

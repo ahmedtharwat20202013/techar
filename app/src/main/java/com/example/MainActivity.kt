@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
                 var isAuthenticated by remember { mutableStateOf(pinStorage.isAuthenticated()) }
                 var pinEnabled by remember { mutableStateOf(pinStorage.isPinEnabled()) }
                 var hasPin by remember { mutableStateOf(pinStorage.hasPin()) }
+                var isSetupSkipped by remember { mutableStateOf(pinStorage.isSetupSkipped()) }
 
                 androidx.compose.runtime.DisposableEffect(pinStorage) {
                     val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
                             "is_auth" -> isAuthenticated = pinStorage.isAuthenticated()
                             "pin_enabled" -> pinEnabled = pinStorage.isPinEnabled()
                             "user_pin" -> hasPin = pinStorage.hasPin()
+                            "pin_setup_skipped" -> isSetupSkipped = pinStorage.isSetupSkipped()
                         }
                     }
                     pinStorage.registerListener(listener)
@@ -82,17 +84,21 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     when {
-                        // Show PIN screen if enabled and not authenticated
-                        pinEnabled && !isAuthenticated -> {
+                        // Show PIN screen if enabled and not authenticated (and has a pin set)
+                        pinEnabled && hasPin && !isAuthenticated -> {
                             PinLockScreen(
                                 onAuthenticated = { isAuthenticated = true }
                             )
                         }
 
-                        // First time setup - no PIN set yet
-                        !hasPin && !isAuthenticated -> {
+                        // First time setup - no PIN set yet and hasn't skipped setup
+                        !hasPin && !isSetupSkipped && !isAuthenticated -> {
                             PinLockScreen(
-                                onAuthenticated = { isAuthenticated = true }
+                                onAuthenticated = { isAuthenticated = true },
+                                onSkip = {
+                                    isSetupSkipped = true
+                                    isAuthenticated = true
+                                }
                             )
                         }
 
